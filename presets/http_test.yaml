@@ -1,0 +1,18 @@
+interface: "ens18"
+
+sequences:
+  one:
+    delay: 1000000
+    time: 60
+
+    ip:
+      dstip: "10.50.0.4"
+      protocol: tcp
+
+    tcp:
+      dstport: 80
+      usesocket: true
+
+    payload:
+      isstring: true
+      exact: "GET / HTTP/1.0\r\nHost: 10.50.0.4\r\n\r\n"

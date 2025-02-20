@@ -1,0 +1,75 @@
+# First basic config I'm making to show as an example on what the tool will be able to do.
+interface: "ens18"
+
+sequences:
+  initial:
+    # If we want to run other configs before this sequence (e.g. establishing a TCP handshake), use includes. THIS IS NOT SUPPORTED YET.
+    #includes:
+    #  - /etc/sequencecfgs/tcp_handshake.yaml
+
+    # Amount of times to generate the packet/sequence.
+    count: 50
+
+    # How many threads to spawn to handle this sequence (use 0 for host's CPU count).
+    threads: 4
+    
+    # Ethernet header options.
+    #eth:
+      # Source MAC address (don't include to automatically retrieve the MAC address of 'interface').
+      #smac: ""
+
+      # Destination MAC address (don't include to automatically retrieve the MAC address of the default gateway).
+      #dmac: ""
+
+    # Additional IP options.
+    ip:
+      # Source IP (Required).
+      srcip: "192.168.90.3"
+
+      # Destination IP (Required).
+      dstip: "172.16.0.3"
+
+      # Layer 4 protocol (e.g. UDP, TCP, ICMP, etc) (Required).
+      protocol: udp
+
+      #tos: 0
+      #ttl:
+        #min: 64
+        #max: 128
+
+      # Whether to calculate IP header's checksum (if disabled and you have checksum offload enabled on NIC, will result in higher performance).
+      #csum: True
+    
+    # UDP specific options.
+    udp:
+      srcport: 27000 # Don't include this for randomized port.
+      dstport: 27015 # Don't include this for randomized port.
+
+    # Whether to calculate layer 4 header's checksum (e.g. UDP/TCP/ICMP).
+    #l4csum: True
+    
+    # Payload options.
+    payload:
+      # Payload length options.
+      length:
+        min: 64
+        max: 64
+      
+      # The exact payload is hexadecimal. If this is specified, anything related to the payload length will be ignored.
+      #exact: "FF FF FF FF 49"
+
+  second:
+    count: 300
+    threads: 0
+    ip:
+      ranges:
+          - 192.168.90.0/24
+      dstip: "172.16.0.3"
+      protocol: udp
+      csum: True
+    udp:
+      srcport: 27000
+      dstport: 27015
+    l4csum: True
+    payload:
+      exact: "FF FF FF FF 49"

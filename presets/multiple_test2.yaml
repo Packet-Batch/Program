@@ -1,0 +1,122 @@
+# First basic config I'm making to show as an example on what the tool will be able to do.
+interface: "ens18"
+
+sequences:
+  one:
+    block: true
+    count: 10
+    delay: 0
+    threads: 1
+    eth:
+      smac: "1a:c4:df:70:d8:a6"
+      dmac: "ae:21:14:4b:3a:6d"
+    ip:
+      srcip: "10.50.0.3"
+      dstip: "10.50.0.4"
+      protocol: udp
+      csum: True
+    udp:
+      srcport: 27000
+      dstport: 27017
+    l4csum: True
+    payload:
+      exact: "FF FF FF FF 49"
+  two:
+    block: true
+    count: 1
+    delay: 0
+    threads: 1
+    eth:
+      smac: "1a:c4:df:70:d8:a6"
+      dmac: "ae:21:14:4b:3a:6d"
+    ip:
+      srcip: "10.50.0.3"
+      dstip: "10.50.0.4"
+      protocol: udp
+      csum: True
+    udp:
+      srcport: 27000
+      dstport: 27015
+    l4csum: True
+    payload:
+      exact: "FF FF FF FF 66"
+  three:
+    block: true
+    count: 1
+    delay: 0
+    threads: 1
+    eth:
+      smac: "1a:c4:df:70:d8:a6"
+      dmac: "ae:21:14:4b:3a:6d"
+    ip:
+      srcip: "10.50.0.3"
+      dstip: "10.50.0.4"
+      protocol: udp
+      csum: True
+    udp:
+      srcport: 27000
+      dstport: 27015
+    l4csum: True
+    payload:
+      exact: "FF FF FF FF 80"
+  four:
+    block: true
+    count: 1
+    delay: 0
+    threads: 1
+    eth:
+      smac: "1a:c4:df:70:d8:a6"
+      dmac: "ae:21:14:4b:3a:6d"
+    ip:
+      srcip: "10.50.0.3"
+      dstip: "10.50.0.4"
+      protocol: udp
+      csum: True
+    udp:
+      srcport: 27000
+      dstport: 27015
+    l4csum: True
+    payload:
+      exact: "FF FF FF FF 90"
+  five:
+    block: true
+    count: 1
+    delay: 0
+    threads: 1
+    eth:
+      smac: "1a:c4:df:70:d8:a6"
+      dmac: "ae:21:14:4b:3a:6d"
+    ip:
+      srcip: "10.50.0.3"
+      dstip: "10.50.0.4"
+      protocol: udp
+      csum: True
+    udp:
+      srcport: 27000
+      dstport: 27015
+    l4csum: True
+    payload:
+      exact: "01 02 03 04 05"
+  six:
+    count: 4
+    delay: 0
+    threads: 2
+    eth:
+      smac: "1a:c4:df:70:d8:a6"
+      dmac: "ae:21:14:4b:3a:6d"
+    ip:
+      ranges:
+        - 192.168.90.0/24
+        - 10.30.0.0/24
+        - 172.16.0.0/16
+      dstip: "10.50.0.4"
+      protocol: udp
+      csum: True
+    udp:
+      srcport: 27000
+      dstport: 27016
+    l4csum: True
+    payload:
+      length:
+        min: 300
+        max: 500

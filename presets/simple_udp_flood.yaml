@@ -1,0 +1,36 @@
+# Simple UDP flood aimed to send as much data as possible (you can increase the min and max length of the payload though if your NIC supports it).
+interface: "ens18"
+
+sequences:
+    one:
+        delay: 0
+        time: 60
+
+        eth:
+            smac: "1a:c4:df:70:d8:a6"
+            dmac: "ae:21:14:4b:3a:6d"
+
+        ip:
+            protocol: udp
+            srcip: "10.50.0.3"
+            dstip: "10.50.0.4"
+
+            # Set static values for better performance.
+            ttl:
+                min: 64
+                max: 64
+
+            id:
+                min: 0
+                max: 0
+
+        udp:
+            srcport: 27000
+            dstport: 8898
+
+        payload:
+            length:
+                min: 61000
+                max: 61000
+                # Only generate one payload and use it repeatedly. This increases performance A LOT (went from 10 - 20 gbps to 50 - 60 gbps).
+                static: true

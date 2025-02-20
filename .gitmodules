@@ -1,9 +1,9 @@
-[submodule "modules/common"]
-	path = modules/common
-	url = https://github.com/Packet-Batch/PB-Common.git
-[submodule "modules/tests"]
-	path = modules/tests
-	url = https://github.com/Packet-Batch/PB-Tests.git
-[submodule "modules/libbpf"]
-	path = modules/libbpf
-	url = https://github.com/libbpf/libbpf.git
+[submodule "modules/tech-afxdp"]
+	path = modules/tech-afxdp
+	url = git@github.com:Packet-Batch/tech-afxdp
+[submodule "modules/tech-afpacket"]
+	path = modules/tech-afpacket
+	url = git@github.com:Packet-Batch/tech-afpacket
+[submodule "modules/tech-dpdk"]
+	path = modules/tech-dpdk
+	url = git@github.com:Packet-Batch/tech-dpdk
