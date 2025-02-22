@@ -6,6 +6,12 @@ package afxdp
 #include <stdlib.h>
 
 extern void* get_function(void* handle, const char* funcname);
+
+int callSetup(void* f, const char* dev, int queueId, int needWakeup, int sharedUmem, int forceSkb, int zeroCopy, int threads) {
+	int (*fn)(const char*, int, int, int, int, int, int) = (int (*)(const char*, int, int, int, int, int, int))f;
+
+	return fn(dev, queueId, needWakeup, sharedUmem, forceSkb, zeroCopy, threads);
+}
 */
 import "C"
 
@@ -13,8 +19,6 @@ import (
 	"fmt"
 	"unsafe"
 )
-
-type setupFuncType func(*C.char, C.int, C.int, C.int, C.int, C.int, C.int) C.int
 
 func (c *Context) GetSetupFunc() error {
 	cFunc := C.CString("Setup")
@@ -57,9 +61,7 @@ func (c *Context) Setup(dev string, queueId int, needWakeup bool, sharedUmem boo
 		dZeroCopy = C.int(1)
 	}
 
-	fn := *(*setupFuncType)(unsafe.Pointer(c.SetupFunc))
-
-	ret := fn(cDev, C.int(queueId), dNeedWakeup, dSharedUmem, dForceSkb, dZeroCopy, C.int(threads))
+	ret := C.callSetup(c.SetupFunc, cDev, C.int(queueId), dNeedWakeup, dSharedUmem, dForceSkb, dZeroCopy, C.int(threads))
 
 	if ret != 0 {
 		return fmt.Errorf("failed to setup AF_XDP: invalid return code (%d)", ret)

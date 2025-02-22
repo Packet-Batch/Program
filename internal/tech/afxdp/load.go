@@ -25,7 +25,7 @@ type Context struct {
 func New() (*Context, error) {
 	ctx := &Context{}
 
-	cLib := C.CString("libtechafxdp.so")
+	cLib := C.CString("libpbafxdp.so")
 
 	defer C.free(unsafe.Pointer(cLib))
 

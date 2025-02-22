@@ -6,6 +6,12 @@ package afxdp
 #include <stdlib.h>
 
 extern void* get_function(void* handle, const char* funcname);
+
+int callSendPacket(void* f, void* pkt, int length, int threadIdx, int batchSize) {
+	int (*fn)(void*, int, int, int) = (int (*)(void*, int, int, int))f;
+
+	return fn(pkt, length, threadIdx, batchSize);
+}
 */
 import "C"
 
@@ -13,8 +19,6 @@ import (
 	"fmt"
 	"unsafe"
 )
-
-type sendPacketFuncType func(unsafe.Pointer, C.int, C.int, C.int) C.int
 
 func (c *Context) GetSendPacketFunc() error {
 	cFunc := C.CString("SendPacket")
@@ -30,9 +34,7 @@ func (c *Context) GetSendPacketFunc() error {
 }
 
 func (c *Context) SendPacket(data []byte, length int, threadIdx int, batchSize int) error {
-	fn := *(*sendPacketFuncType)(unsafe.Pointer(c.SendPacketFunc))
-
-	ret := fn(unsafe.Pointer(&data[0]), C.int(length), C.int(threadIdx), C.int(batchSize))
+	ret := C.callSendPacket(c.SendPacketFunc, unsafe.Pointer(&data[0]), C.int(length), C.int(threadIdx), C.int(batchSize))
 
 	if ret != 0 {
 		return fmt.Errorf("failed to send packet: invalid return code (%d)", ret)

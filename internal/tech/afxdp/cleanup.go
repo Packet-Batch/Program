@@ -6,6 +6,12 @@ package afxdp
 #include <stdlib.h>
 
 extern void* get_function(void* handle, const char* funcname);
+
+int callCleanup(void* f, int threads) {
+	int (*fn)(int) = (int (*)(int))f;
+
+	return fn(threads);
+}
 */
 import "C"
 
@@ -13,8 +19,6 @@ import (
 	"fmt"
 	"unsafe"
 )
-
-type cleanupFuncType func(C.int) C.int
 
 func (c *Context) GetCleanupFunc() error {
 	cFunc := C.CString("Cleanup")
@@ -30,9 +34,7 @@ func (c *Context) GetCleanupFunc() error {
 }
 
 func (c *Context) Cleanup(threads int) error {
-	fn := *(*cleanupFuncType)(unsafe.Pointer(c.CleanupFunc))
-
-	ret := fn(C.int(threads))
+	ret := C.callCleanup(c.CleanupFunc, C.int(threads))
 
 	if ret != 0 {
 		return fmt.Errorf("failed to cleanup AF_XDP tech: invalid return code (%d)", ret)
