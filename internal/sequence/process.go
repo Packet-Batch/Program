@@ -6,10 +6,12 @@ import (
 
 	"github.com/Packet-Batch/Program/internal/cli"
 	"github.com/Packet-Batch/Program/internal/config"
+	"github.com/Packet-Batch/Program/internal/network"
 	"github.com/Packet-Batch/Program/internal/tech"
 	"github.com/Packet-Batch/Program/internal/tech/afpacket"
 	"github.com/Packet-Batch/Program/internal/tech/afxdp"
 	"github.com/Packet-Batch/Program/internal/tech/dpdk"
+	"github.com/Packet-Batch/Program/internal/utils"
 )
 
 func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence) error {
@@ -30,6 +32,46 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence) error {
 		}
 	}
 
+	// Get thread count.
+	threads := seq.Threads
+
+	if threads < 1 {
+		threads = uint8(utils.GetCpuCount())
+	}
+
+	if threads < 1 {
+		return fmt.Errorf("threads below 1")
+	}
+
+	// Retrieve source MAC address.
+	srcMac := [6]byte{}
+
+	if seq.Eth.SrcMac != nil {
+		srcMac, err = network.MacAddrStrToArr(*seq.Eth.SrcMac)
+
+		if err != nil {
+			return fmt.Errorf("failed to parse source MAC address: %v", err)
+		}
+	} else {
+		srcMac = network.GetMacOfInterface(*dev)
+	}
+
+	// Retrieve destination MAC address.
+	dstMac := [6]byte{}
+
+	if seq.Eth.DstMac != nil {
+		dstMac, err = network.MacAddrStrToArr(*seq.Eth.DstMac)
+
+		if err != nil {
+			return fmt.Errorf("failed to parse destination MAC address: %v", err)
+		}
+	} else {
+		dstMac = network.GetGatewayMacAddr()
+	}
+
+	cfg.DebugMsg(3, "[SEQ] Using src MAC => %x:%x:%x:%x:%x:%x", srcMac[0], srcMac[1], srcMac[2], srcMac[3], srcMac[4], srcMac[5])
+	cfg.DebugMsg(3, "[SEQ] Using dst MAC => %x:%x:%x:%x:%x:%x", dstMac[0], dstMac[1], dstMac[2], dstMac[3], dstMac[4], dstMac[5])
+
 	cAfxdp, _ := t.(*afxdp.Context)
 	cAfpacket, _ := t.(*afpacket.Context)
 	cDpdk, _ := t.(*dpdk.Context)
@@ -49,8 +91,9 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence) error {
 		if err != nil {
 			return fmt.Errorf("failed to setup DPDK sequence: %v", err)
 		}
+
 	default:
-		err := cAfxdp.Setup(*dev, cli.AfXdp.Queue, cli.AfXdp.NeedWakeup, cli.AfXdp.SharedUmem, cli.AfXdp.ForceSkb, cli.AfXdp.ZeroCopy, int(seq.Threads))
+		err := cAfxdp.Setup(*dev, cli.AfXdp.Queue, cli.AfXdp.NeedWakeup, cli.AfXdp.SharedUmem, cli.AfXdp.ForceSkb, cli.AfXdp.ZeroCopy, int(threads))
 
 		if err != nil {
 			return fmt.Errorf("failed to setup AF_XDP sequence: %v", err)
@@ -89,7 +132,7 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence) error {
 		err := cDpdk.Cleanup(int(seq.Threads))
 
 		if err != nil {
-			return fmt.Errorf("failed to cleanup DPDK sequence: %v")
+			return fmt.Errorf("failed to cleanup DPDK sequence: %v", err)
 		}
 
 	default:
