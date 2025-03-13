@@ -17,10 +17,9 @@ import (
 	"github.com/google/gopacket"
 
 	"github.com/google/gopacket/layers"
-	_ "github.com/google/gopacket/layers"
 )
 
-func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence) error {
+func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int) error {
 	var err error
 
 	// Load tech.
@@ -52,7 +51,7 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence) error {
 	}
 
 	// Retrieve source MAC address.
-	srcMac := []byte{}
+	var srcMac []byte
 
 	if len(seq.Eth.SrcMac) > 0 {
 		srcMac, err = network.MacAddrStrToArr(seq.Eth.SrcMac)
@@ -69,7 +68,7 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence) error {
 	}
 
 	// Retrieve destination MAC address.
-	dstMac := []byte{}
+	var dstMac []byte
 
 	if len(seq.Eth.DstMac) > 0 {
 		dstMac, err = network.MacAddrStrToArr(seq.Eth.DstMac)
@@ -120,8 +119,10 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence) error {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	buf := gopacket.NewSerializeBuffer()
-	opts := gopacket.SerializeOptions{}
-	lays := []gopacket.SerializableLayer{}
+	pktOpts := gopacket.SerializeOptions{
+		ComputeChecksums: seq.ComputeCsums,
+	}
+	pktLayers := []gopacket.SerializableLayer{}
 
 	// Ethernet header.
 	eth := layers.Ethernet{
@@ -179,7 +180,7 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence) error {
 
 	iph.Protocol = proto
 
-	lays = append(lays, &eth, &iph)
+	pktLayers = append(pktLayers, &eth, &iph)
 
 	// Handle layer-4 protocols.
 	tcph := layers.TCP{}
@@ -196,63 +197,78 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence) error {
 			tcph.DstPort = layers.TCPPort(seq.Tcp.DstPort)
 		}
 
-		lays = append(lays, &tcph)
+		pktLayers = append(pktLayers, &tcph)
 
 	case layers.IPProtocolUDP:
 		if seq.Udp.SrcPort > 0 {
-			udph.SrcPort = layers.UDPPort(seq.Tcp.SrcPort)
+			udph.SrcPort = layers.UDPPort(seq.Udp.SrcPort)
 		}
 
 		if seq.Udp.DstPort > 0 {
 			udph.DstPort = layers.UDPPort(seq.Tcp.DstPort)
 		}
 
-		lays = append(lays, &udph)
+		pktLayers = append(pktLayers, &udph)
 
 	case layers.IPProtocolICMPv4:
 		icmph.TypeCode = layers.ICMPv4TypeCode((uint16(seq.Icmp.Type) << 8) | uint16(seq.Icmp.Code))
 
-		lays = append(lays, &icmph)
+		pktLayers = append(pktLayers, &icmph)
 	}
 
 	// Handle payload(s).
-	pl := gopacket.Payload{}
+	var pl gopacket.Payload
 
 	// Check if we have a static payload.
-	if len(pl) == 1 {
-		v := seq.Payloads[0]
+	if len(seq.Payloads) > 0 {
+		pktLayers = append(pktLayers, &pl)
 
-		if len(v.Exact) > 0 {
-			if v.IsString {
-				pl = []byte(v.Exact)
-			} else {
-				data, err := utils.HexadecimalsToBytes(v.Exact)
+		if len(seq.Payloads) == 1 {
+			v := seq.Payloads[0]
 
-				if err != nil {
-					return fmt.Errorf("failed to parse static payload data as hexadecimal: %v", err)
+			if len(v.Exact) > 0 {
+				if v.IsString {
+					pl = []byte(v.Exact)
+				} else {
+					data, err := utils.HexadecimalsToBytes(v.Exact)
+
+					if err != nil {
+						return fmt.Errorf("failed to parse static payload data as hexadecimal: %v", err)
+					}
+
+					pl = data
 				}
-
-				pl = data
+			} else if v.MinLen == v.MaxLen && v.IsStatic {
+				pl = utils.GenRandBytesSingle(int(v.MinLen), rng)
 			}
-		} else if v.MinLen == v.MaxLen && v.IsStatic {
-			pl = utils.GenRandBytesSingle(int(v.MinLen), rng)
 		}
 	}
 
 	// Handle packet counters.
 	nextCounterUpdate := time.Now().Unix() + 1
 
-	pps := seq.Pps
 	curPps := uint64(0)
-
-	bps := seq.Bps
 	curBps := uint64(0)
 
 	totPkts := uint64(0)
 	totBytes := uint64(0)
 
+	// Get end time if needed.
+	endTime := int64(0)
+
+	if seq.Time > 0 {
+		endTime = time.Now().Unix() + int64(seq.Time)
+	}
+
 	for k := range threads {
 		cfg.DebugMsg(1, "Spawning thread #%d for sequence...", k)
+
+		var curPl *config.Payload = nil
+		curPlIdx := 0
+
+		if len(seq.Payloads) > 0 {
+			curPl = &seq.Payloads[0]
+		}
 
 		// Spawn thread.
 		go func() {
@@ -261,22 +277,155 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence) error {
 				now := time.Now().Unix()
 
 				// Retrieve packet length.
-				pktLen := 0
+				pktLen := uint64(0)
 
 				// Check packet counters.
 				if now > nextCounterUpdate {
 					nextCounterUpdate = now + 1
 
 					curPps = 1
-					curBps = uint64(pktLen)
+					curBps = pktLen
 				} else {
+					// Check PPS and BPS rate limits.
+					if seq.Pps > 0 && curPps > seq.Pps {
+						time.Sleep(time.Duration(seq.Delay) * time.Microsecond)
+
+						continue
+					}
+
+					if seq.Bps > 0 && curBps > seq.Bps {
+						time.Sleep(time.Duration(seq.Delay) * time.Microsecond)
+
+						continue
+					}
+
 					curPps++
-					curBps += uint64(pktLen)
+					curBps += pktLen
 				}
 
+				// Check for IP range.
+				if len(seq.Ip4.SrcIpRanges) > 0 {
+					ipRange := ""
+
+					if len(seq.Ip4.SrcIpRanges) == 1 {
+						ipRange = seq.Ip4.SrcIpRanges[0]
+					} else {
+						randIdx := rng.Intn(len(seq.Ip4.SrcIpRanges))
+
+						ipRange = seq.Ip4.SrcIpRanges[randIdx]
+					}
+
+					randIp, err := network.GetIpFromRange(ipRange, rng)
+
+					if err != nil {
+						cfg.DebugMsg(1, "[SEQ %d] Failed to retrieve random source IP from range '%s': %v", idx, ipRange, err)
+
+						time.Sleep(time.Duration(seq.Delay) * time.Microsecond)
+
+						continue
+					}
+
+					iph.SrcIP = network.U32ToNetIp(randIp)
+				}
+
+				// Handle layer-4 protocols.
+				switch iph.Protocol {
+				case layers.IPProtocolTCP:
+					// Check for random TCP ports.
+					if seq.Tcp.SrcPort < 1 {
+						tcph.SrcPort = layers.TCPPort(uint16(utils.GetRandInt(1, 65535, rng)))
+					}
+
+					if seq.Tcp.DstPort < 1 {
+						tcph.DstPort = layers.TCPPort(uint16(utils.GetRandInt(1, 65535, rng)))
+					}
+
+				case layers.IPProtocolUDP:
+					// Check for random UDP ports.
+					if seq.Udp.SrcPort < 1 {
+						udph.SrcPort = layers.UDPPort(uint16(utils.GetRandInt(1, 65535, rng)))
+					}
+
+					if seq.Udp.DstPort < 1 {
+						udph.DstPort = layers.UDPPort(uint16(utils.GetRandInt(1, 65535, rng)))
+					}
+				}
+
+				// Check if we need to regenerate payload.
+				if curPl != nil {
+					if len(seq.Payloads) > 1 || (len(curPl.Exact) < 1 && curPl.MinLen != curPl.MaxLen && !curPl.IsStatic) {
+						if len(curPl.Exact) > 0 {
+							if curPl.IsFile {
+								fData, err := utils.ReadFileAndStoreBytes(curPl.Exact)
+
+								if err != nil {
+									cfg.DebugMsg(1, "[SEQ %d] Failed to read payload data from file for payload #%d (file => %s): %v", idx, curPlIdx, curPl.Exact, err)
+
+									time.Sleep(time.Duration(seq.Delay) * time.Microsecond)
+
+									continue
+								}
+
+								if curPl.IsString {
+									pl = fData
+								} else {
+									pl, err = utils.HexadecimalsToBytes(string(fData))
+
+									if err != nil {
+										cfg.DebugMsg(1, "[SEQ %d] Failed to parse payload data from file '%s' in hexadecimal: %v", idx, curPl.Exact, err)
+
+										time.Sleep(time.Duration(seq.Delay) * time.Microsecond)
+
+										continue
+									}
+								}
+							} else {
+								if curPl.IsString {
+									pl = []byte(curPl.Exact)
+								} else {
+									pl, err = utils.HexadecimalsToBytes(curPl.Exact)
+
+									if err != nil {
+										cfg.DebugMsg(1, "[SEQ %d] Failed to parse payload data as hexadecimal: %v", idx, err)
+
+										time.Sleep(time.Duration(seq.Delay) * time.Microsecond)
+
+										continue
+									}
+								}
+							}
+						} else {
+
+						}
+					}
+				}
+
+				// Serialize data.
+				gopacket.SerializeLayers(buf, pktOpts, pktLayers...)
+
+				pkt := buf.Bytes()
+
+				switch seq.Tech {
+				case "af_xdp":
+					err = cAfxdp.SendPacket(pkt, len(pkt), int(k), cli.AfXdp.BatchSize)
+
+				case "af_packet":
+					err = cAfpacket.SendPacket(pkt, len(pkt), int(k))
+				}
+
+				if err != nil {
+					cfg.DebugMsg(1, "[SEQ %d] Failed to send packet on thread #%d: %v", idx, k+1, err)
+
+					time.Sleep(time.Duration(seq.Delay) * time.Microsecond)
+
+					continue
+				}
+
+				// Increment total counters.
 				totPkts++
 				totBytes += uint64(pktLen)
 
+				// Check total counters and limits.
 				if totPkts > seq.MaxPkts {
 					return
 				}
@@ -284,6 +433,20 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence) error {
 				if totBytes > seq.MaxBytes {
 					return
 				}
+
+				// Check time.
+				if endTime > 0 && now > endTime {
+					return
+				}
+
+				// Alternate payload if there are mulitple.
+				if curPl != nil && len(seq.Payloads) > 1 {
+					curPlIdx = (curPlIdx + 1) % len(seq.Payloads)
+
+					curPl = &seq.Payloads[curPlIdx]
+				}
+
+				time.Sleep(time.Duration(seq.Delay) * time.Microsecond)
 			}
 		}()
 	}

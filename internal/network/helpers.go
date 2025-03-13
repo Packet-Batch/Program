@@ -2,6 +2,7 @@ package network
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"math/rand"
 	"net"
@@ -121,7 +122,7 @@ func GetProtocolStrById(proto layers.IPProtocol) (string, error) {
 	return "", fmt.Errorf("protocol not found")
 }
 
-func GetIpStrFromRange(ipRange string, rng *rand.Rand) (uint32, error) {
+func GetIpFromRange(ipRange string, rng *rand.Rand) (uint32, error) {
 	var err error
 
 	// Split the IP range and retrieve CIDR if available (otherwise use 32).
@@ -158,4 +159,10 @@ func GetIpStrFromRange(ipRange string, rng *rand.Rand) (uint32, error) {
 	randIp := (ipAddr &^ mask) | (randNum & mask)
 
 	return randIp, nil
+}
+
+func U32ToNetIp(ip uint32) net.IP {
+	b := make([]byte, 4)
+	binary.BigEndian.PutUint32(b, ip)
+	return net.IP(b)
 }

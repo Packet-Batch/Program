@@ -46,6 +46,10 @@ func HexadecimalsToBytes(s string) ([]byte, error) {
 	return ret, nil
 }
 
+func GetRandInt(min int, max int, rng *rand.Rand) int {
+	return rng.Intn(max - min + 1)
+}
+
 func GenRandBytes(min int, max int, rng *rand.Rand) []byte {
 	n := min + rng.Intn(max-min+1)
 	b := make([]byte, n)

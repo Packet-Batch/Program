@@ -25,19 +25,55 @@ func CheckFirstSeqOverride(cfg *config.Config, cli *cli.Cli) bool {
 	if len(or.Interface) > 0 {
 		changed = true
 
-		seq.Interface = &or.Interface
+		seq.Interface = or.Interface
+	}
+
+	if or.Block > -1 {
+		changed = true
+
+		seq.Block = utils.IntToBool(or.Block)
+	}
+
+	if or.MaxPkts > -1 {
+		changed = true
+
+		seq.MaxPkts = uint64(or.MaxPkts)
+	}
+
+	if or.MaxBytes > -1 {
+		changed = true
+
+		seq.MaxBytes = uint64(or.MaxBytes)
+	}
+
+	if or.Time > -1 {
+		changed = true
+
+		seq.Time = or.Time
+	}
+
+	if or.Delay > -1 {
+		changed = true
+
+		seq.Delay = uint64(or.Delay)
+	}
+
+	if or.Threads > -1 {
+		changed = true
+
+		seq.Threads = uint8(or.Threads)
 	}
 
 	if len(or.SrcMac) > 0 {
 		changed = true
 
-		seq.Eth.SrcMac = &or.SrcMac
+		seq.Eth.SrcMac = or.SrcMac
 	}
 
 	if len(or.DstMac) > 0 {
 		changed = true
 
-		seq.Eth.DstMac = &or.DstMac
+		seq.Eth.DstMac = or.DstMac
 	}
 
 	if len(or.Protocol) > 0 {
@@ -49,7 +85,7 @@ func CheckFirstSeqOverride(cfg *config.Config, cli *cli.Cli) bool {
 	if len(or.SrcIp) > 0 {
 		changed = true
 
-		seq.Ip4.SrcIp = &or.SrcIp
+		seq.Ip4.SrcIp = or.SrcIp
 	}
 
 	if len(or.SrcIpRanges) > 0 {
@@ -86,13 +122,13 @@ func CheckFirstSeqOverride(cfg *config.Config, cli *cli.Cli) bool {
 	if or.MinTtl > -1 {
 		changed = true
 
-		seq.Ip4.MinTtl = uint16(or.MinTtl)
+		seq.Ip4.MinTtl = uint8(or.MinTtl)
 	}
 
 	if or.MaxTtl > -1 {
 		changed = true
 
-		seq.Ip4.MaxTtl = uint16(or.MaxTtl)
+		seq.Ip4.MaxTtl = uint8(or.MaxTtl)
 	}
 
 	if or.MinId > -1 {
@@ -105,20 +141,6 @@ func CheckFirstSeqOverride(cfg *config.Config, cli *cli.Cli) bool {
 		changed = true
 
 		seq.Ip4.MaxId = uint16(or.MaxId)
-	}
-
-	if or.L3Csum > -1 {
-		changed = true
-
-		seq.Ip4.Csum = utils.IntToBool(or.L3Csum)
-	}
-
-	if or.L4Csum > -1 {
-		changed = true
-
-		seq.Tcp.Csum = utils.IntToBool(or.L4Csum)
-		seq.Udp.Csum = utils.IntToBool(or.L4Csum)
-		seq.Icmp.Csum = utils.IntToBool(or.L4Csum)
 	}
 
 	if or.SrcPort > -1 {
@@ -207,6 +229,12 @@ func CheckFirstSeqOverride(cfg *config.Config, cli *cli.Cli) bool {
 		seq.Icmp.Type = uint8(or.IcmpType)
 	}
 
+	if or.ComputerCsums > -1 {
+		changed = true
+
+		seq.ComputeCsums = utils.IntToBool(or.ComputerCsums)
+	}
+
 	if or.PlMinLen > -1 || or.PlMaxLen > -1 || or.PlStatic > -1 || or.PlFile > -1 || or.PlString > -1 || len(or.PlExact) > 0 {
 		changed = true
 
@@ -239,7 +267,7 @@ func CheckFirstSeqOverride(cfg *config.Config, cli *cli.Cli) bool {
 		}
 
 		if len(or.PlExact) > 0 {
-			pl.Exact = &or.PlExact
+			pl.Exact = or.PlExact
 		}
 
 		if len(seq.Payloads) < 1 {
