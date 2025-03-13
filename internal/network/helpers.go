@@ -52,7 +52,7 @@ func GetGatewayMacAddr() ([]byte, error) {
 		return nil, err
 	}
 
-	cmd := exec.Command("sh", "-c", fmt.Sprintf("ip neigh | grep '%s ' | awk '{print $5}'", gatewayIP))
+	cmd := exec.Command("sh", "-c", fmt.Sprintf("ip neigh | grep -m1 '%s ' | awk '{print $5}'", gatewayIP))
 	var out bytes.Buffer
 	cmd.Stdout = &out
 
@@ -71,6 +71,9 @@ func GetGatewayMacAddr() ([]byte, error) {
 
 func MacAddrStrToArr(str string) ([]byte, error) {
 	var macAddr []byte
+
+	str = strings.TrimSpace(str)
+
 	parts := strings.Split(str, ":")
 
 	if len(parts) < 6 {
