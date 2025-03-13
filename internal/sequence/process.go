@@ -356,6 +356,69 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 			}
 
 			for {
+				// Regenerate seed.
+				rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+				// Retrieve current time.
+				now := time.Now().Unix()
+
+				// Check packet rates.
+				if do_pps || do_bps || seqLoc.Track {
+					if now >= nextCounterUpdate {
+						nextCounterUpdate = now + 1
+
+						curPps = 0
+						curBps = 0
+					} else {
+						// Check PPS and BPS rate limits.
+						if do_pps && curPps >= seqLoc.Pps {
+							utils.SleepMicro(seqLoc.Delay)
+
+							continue
+						}
+
+						if do_bps && curBps >= seqLoc.Bps {
+							utils.SleepMicro(seqLoc.Delay)
+
+							continue
+						}
+					}
+				}
+
+				// Check for random source IP from range.
+				if len(seqLoc.Ip4.SrcIpRanges) > 0 {
+					ipRange := ""
+
+					if len(seqLoc.Ip4.SrcIpRanges) == 1 {
+						ipRange = seqLoc.Ip4.SrcIpRanges[0]
+					} else {
+						randIdx := rng.Intn(len(seqLoc.Ip4.SrcIpRanges))
+
+						ipRange = seqLoc.Ip4.SrcIpRanges[randIdx]
+					}
+
+					randIp, err := network.GetIpFromRange(ipRange, rng)
+
+					if err != nil {
+						cfgLoc.DebugMsg(1, "[SEQ %d] Failed to retrieve random source IP from range '%s': %v", seqIdx, ipRange, err)
+
+						utils.SleepMicro(seqLoc.Delay)
+
+						continue
+					}
+
+					iph.SrcIP = network.U32ToNetIp(randIp)
+				}
+
+				// Generate random TTL and ID if needed.
+				if seqLoc.Ip4.MinTtl != seqLoc.Ip4.MaxTtl {
+					iph.TTL = uint8(utils.GetRandInt(int(seqLoc.Ip4.MinTtl), int(seqLoc.Ip4.MaxTtl), rng))
+				}
+
+				if seqLoc.Ip4.MinId != seqLoc.Ip4.MaxId {
+					iph.Id = uint16(utils.GetRandInt(int(seqLoc.Ip4.MinId), int(seqLoc.Ip4.MaxId), rng))
+				}
+
 				// Handle layer-4 protocols.
 				switch iph.Protocol {
 				case layers.IPProtocolTCP:
@@ -379,8 +442,70 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 					}
 				}
 
+				// Check if we need to regenerate payload.
+				if curPl != nil {
+					if len(seqLoc.Payloads) > 1 || (len(curPl.Exact) < 1 && curPl.MinLen != curPl.MaxLen && !curPl.IsStatic) {
+						if len(curPl.Exact) > 0 {
+							if curPl.IsFile {
+								fData, err := utils.ReadFileAndStoreBytes(curPl.Exact)
+
+								if err != nil {
+									cfgLoc.DebugMsg(1, "[SEQ %d] Failed to read payload data from file for payload #%d (file => %s): %v", seqIdx, curPlIdx, curPl.Exact, err)
+
+									utils.SleepMicro(seqLoc.Delay)
+
+									continue
+								}
+
+								if curPl.IsString {
+									pl = gopacket.Payload(fData)
+								} else {
+									data, err := utils.HexadecimalsToBytes(string(fData))
+
+									if err != nil {
+										cfgLoc.DebugMsg(1, "[SEQ %d] Failed to parse payload data from file '%s' in hexadecimal: %v", seqIdx, curPl.Exact, err)
+
+										utils.SleepMicro(seqLoc.Delay)
+
+										continue
+									}
+
+									pl = gopacket.Payload(data)
+								}
+
+							} else {
+								if curPl.IsString {
+									pl = []byte(curPl.Exact)
+								} else {
+									data, err := utils.HexadecimalsToBytes(curPl.Exact)
+
+									if err != nil {
+										cfgLoc.DebugMsg(1, "[SEQ %d] Failed to parse payload data as hexadecimal: %v", seqIdx, err)
+
+										utils.SleepMicro(seqLoc.Delay)
+
+										continue
+									}
+
+									pl = gopacket.Payload(data)
+								}
+							}
+						} else {
+							data := utils.GenRandBytes(int(curPl.MinLen), int(curPl.MaxLen), rng)
+
+							pl = gopacket.Payload(data)
+						}
+
+						// We need to replace old payload reference.
+						pktLayers[len(pktLayers)-1] = &pl
+					}
+				}
+
 				// Serialize data.
 				gopacket.SerializeLayers(buf, pktOpts, pktLayers...)
+
+				// Ethernet header can add trailing bytes that are zero-padded.
+				// Make sure we're ignoring those.
 
 				pkt := buf.Bytes()
 				pktLen := int(iph.Length) + 14
@@ -395,6 +520,40 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 					continue
 				}
 
+				// Increment packet counters.
+				if do_pps || do_bps || seqLoc.Track {
+					curPps++
+					curBps += uint64(pktLen)
+
+					totPkts++
+					totBytes += uint64(pktLen)
+				}
+
+				cfgLoc.DebugMsg(5, "[SEQ %d] Send packet from '%s' to '%s' on thread #%d (length => %d, current PPS => %d, current BPS =>  %d)...", seqIdx, iph.SrcIP.String(), iph.DstIP.String(), id, pktLen, curPps, curBps)
+
+				// Check total counters and limits.
+				if seqLoc.MaxPkts > 0 && totPkts > seqLoc.MaxPkts {
+					return
+				}
+
+				if seqLoc.MaxBytes > 0 && totBytes > seqLoc.MaxBytes {
+					return
+				}
+
+				// Check time.
+				if endTime > 0 && now > endTime {
+					return
+				}
+
+				// Alternate payload if there are mulitple.
+				if curPl != nil && len(seqLoc.Payloads) > 1 {
+
+					curPlIdx = (curPlIdx + 1) % len(seqLoc.Payloads)
+
+					curPl = &seqLoc.Payloads[curPlIdx]
+				}
+
+				utils.SleepMicro(seqLoc.Delay)
 			}
 		}(k)
 	}
