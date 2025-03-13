@@ -53,7 +53,7 @@ func main() {
 	}
 
 	for k, v := range cfg.Sequences {
-		err := sequence.ProcessSeq(cfg, cli, &v)
+		err := sequence.ProcessSeq(cfg, cli, &v, k+1)
 
 		if err != nil {
 			cfg.DebugMsg(1, "[SEQ] Failed to process sequence #%d due to error: %v", k+1, err)
