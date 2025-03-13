@@ -150,7 +150,9 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 	}
 
 	// Handle packet counters.
-	nextCounterUpdate := time.Now().Unix() + 1
+	nextCounterUpdate, _ := utils.GetBootTimeNS()
+
+	nextCounterUpdate += 1e9
 
 	curPps := uint64(0)
 	curBps := uint64(0)
@@ -162,7 +164,9 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 	endTime := int64(0)
 
 	if seq.Time > 0 {
-		endTime = time.Now().Unix() + int64(seq.Time)
+		endTime, _ = utils.GetBootTimeNS()
+
+		endTime += (int64(seq.Time) * 1e9)
 	}
 
 	var wg sync.WaitGroup
@@ -342,17 +346,73 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 				do_bps = true
 			}
 
-			for {
-				// Regenerate seed.
-				rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+			// Retrieve time since boot.
+			now, err := utils.GetBootTimeNS()
 
-				// Retrieve current time.
-				now := time.Now().Unix()
+			if err != nil {
+				cfgLoc.DebugMsg(1, "[SEQ %d] Failed to retrieve boot time in nanoseconds on thread #%d: %v", seqIdx, id, err)
+			}
+
+			needNewTime := false
+
+			if do_pps || do_bps || seqLoc.Track || endTime > 0 {
+				needNewTime = true
+			}
+
+			// Retrieve random seed interval.
+			randInterval := seqLoc.RandInterval
+
+			if randInterval < 0 {
+				randInterval = 10000
+			}
+
+			// Handle random seeding.
+			rng := rand.New(rand.NewSource(now))
+
+			nextRand := now + randInterval
+
+			needNewRand := false
+
+			// Check for common settings that requires random seeding.
+			if len(seqLoc.Ip4.SrcIpRanges) > 0 || seqLoc.Ip4.MinId != seqLoc.Ip4.MaxId || seqLoc.Ip4.MinTtl != seqLoc.Ip4.MaxTtl || (iph.Protocol == layers.IPProtocolTCP && (seqLoc.Tcp.SrcPort < 1 || seqLoc.Tcp.DstPort < 1)) || (iph.Protocol == layers.IPProtocolUDP && (seqLoc.Udp.SrcPort < 1 || seqLoc.Udp.DstPort < 1)) {
+				needNewRand = true
+			}
+
+			// Check for payloads that need random seeding.
+			if !needNewRand && len(seqLoc.Payloads) > 0 {
+				for _, p := range seqLoc.Payloads {
+					if len(p.Exact) < 1 && (!p.IsStatic && p.MaxLen > 0) {
+						needNewRand = true
+
+						break
+					}
+				}
+			}
+
+			// Make sure we retrieve new time if random seeding is enabled.
+			if needNewRand && !needNewTime {
+				needNewTime = true
+			}
+
+			for {
+				// Retrieve current time if needed.
+				if needNewTime {
+					now, _ = utils.GetBootTimeNS()
+				}
+
+				// Regenerate seed if needed (every 10,000 nanoseconds to try to save CPU cycles).
+				if needNewRand {
+					if now > nextRand {
+						rng = rand.New(rand.NewSource(now))
+
+						nextRand = now + randInterval
+					}
+				}
 
 				// Check packet rates.
 				if do_pps || do_bps || seqLoc.Track {
 					if now >= nextCounterUpdate {
-						nextCounterUpdate = now + 1
+						nextCounterUpdate = now + 1e9
 
 						curPps = 0
 						curBps = 0
@@ -431,7 +491,7 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 
 				// Check if we need to regenerate payload.
 				if curPl != nil {
-					if len(seqLoc.Payloads) > 1 || (len(curPl.Exact) < 1 && curPl.MinLen != curPl.MaxLen && !curPl.IsStatic) {
+					if len(seqLoc.Payloads) > 1 || (len(curPl.Exact) < 1 && !curPl.IsStatic && curPl.MaxLen > 0) {
 						if len(curPl.Exact) > 0 {
 							if curPl.IsFile {
 								fData, err := utils.ReadFileAndStoreBytes(curPl.Exact)
