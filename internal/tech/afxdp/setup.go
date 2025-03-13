@@ -5,12 +5,13 @@ package afxdp
 #include <dlfcn.h>
 #include <stdlib.h>
 
+
 extern void* get_function(void* handle, const char* funcname);
 
-int callSetup(void* f, const char* dev, int queueId, int needWakeup, int sharedUmem, int forceSkb, int zeroCopy, int threads) {
-	int (*fn)(const char*, int, int, int, int, int, int) = (int (*)(const char*, int, int, int, int, int, int))f;
+void* callSetup(void* f, const char* dev, int queueId, int needWakeup, int sharedUmem, int forceSkb, int zeroCopy) {
+	void* (*fn)(const char*, int, int, int, int, int) = (void* (*)(const char*, int, int, int, int, int))f;
 
-	return fn(dev, queueId, needWakeup, sharedUmem, forceSkb, zeroCopy, threads);
+	return (void*) fn(dev, queueId, needWakeup, sharedUmem, forceSkb, zeroCopy);
 }
 */
 import "C"
@@ -33,7 +34,7 @@ func (c *Context) GetSetupFunc() error {
 	return nil
 }
 
-func (c *Context) Setup(dev string, queueId int, needWakeup bool, sharedUmem bool, forceSkb bool, zeroCopy bool, threads int) error {
+func (c *Context) Setup(dev string, queueId int, needWakeup bool, sharedUmem bool, forceSkb bool, zeroCopy bool) (unsafe.Pointer, error) {
 	cDev := C.CString(dev)
 	defer C.free(unsafe.Pointer(cDev))
 
@@ -61,11 +62,11 @@ func (c *Context) Setup(dev string, queueId int, needWakeup bool, sharedUmem boo
 		dZeroCopy = C.int(1)
 	}
 
-	ret := C.callSetup(c.SetupFunc, cDev, C.int(queueId), dNeedWakeup, dSharedUmem, dForceSkb, dZeroCopy, C.int(threads))
+	ret := C.callSetup(c.SetupFunc, cDev, C.int(queueId), dNeedWakeup, dSharedUmem, dForceSkb, dZeroCopy)
 
-	if ret != 0 {
-		return fmt.Errorf("failed to setup AF_XDP: invalid return code (%d)", ret)
+	if ret == nil {
+		return nil, fmt.Errorf("failed to setup AF_XDP: Socket is null")
 	}
 
-	return nil
+	return unsafe.Pointer(ret), nil
 }

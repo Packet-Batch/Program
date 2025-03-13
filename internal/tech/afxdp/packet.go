@@ -7,10 +7,10 @@ package afxdp
 
 extern void* get_function(void* handle, const char* funcname);
 
-int callSendPacket(void* f, void* pkt, int length, int threadIdx, int batchSize) {
-	int (*fn)(void*, int, int, int) = (int (*)(void*, int, int, int))f;
+int callSendPacket(void* f, void* xsk, void* pkt, int length, int batchSize) {
+	int (*fn)(void*, void*, int, int) = (int (*)(void*, void*, int, int))f;
 
-	return fn(pkt, length, threadIdx, batchSize);
+	return fn(xsk, pkt, length, batchSize);
 }
 */
 import "C"
@@ -33,8 +33,8 @@ func (c *Context) GetSendPacketFunc() error {
 	return nil
 }
 
-func (c *Context) SendPacket(data []byte, length int, threadIdx int, batchSize int) error {
-	ret := C.callSendPacket(c.SendPacketFunc, unsafe.Pointer(&data[0]), C.int(length), C.int(threadIdx), C.int(batchSize))
+func (c *Context) SendPacket(xsk unsafe.Pointer, data []byte, length int, batchSize int) error {
+	ret := C.callSendPacket(c.SendPacketFunc, xsk, unsafe.Pointer(&data[0]), C.int(length), C.int(batchSize))
 
 	if ret != 0 {
 		return fmt.Errorf("failed to send packet: invalid return code (%d)", ret)

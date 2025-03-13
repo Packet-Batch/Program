@@ -13,9 +13,7 @@ import (
 	"github.com/Packet-Batch/Program/internal/config"
 	"github.com/Packet-Batch/Program/internal/network"
 	"github.com/Packet-Batch/Program/internal/tech"
-	"github.com/Packet-Batch/Program/internal/tech/afpacket"
 	"github.com/Packet-Batch/Program/internal/tech/afxdp"
-	"github.com/Packet-Batch/Program/internal/tech/dpdk"
 	"github.com/Packet-Batch/Program/internal/utils"
 	"github.com/google/gopacket"
 
@@ -93,34 +91,6 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 	cfg.DebugMsg(3, "[SEQ %d] Using src MAC => %x:%x:%x:%x:%x:%x", idx, srcMac[0], srcMac[1], srcMac[2], srcMac[3], srcMac[4], srcMac[5])
 	cfg.DebugMsg(3, "[SEQ %d] Using dst MAC => %x:%x:%x:%x:%x:%x", idx, dstMac[0], dstMac[1], dstMac[2], dstMac[3], dstMac[4], dstMac[5])
 
-	cAfxdp, _ := t.(*afxdp.Context)
-	cAfpacket, _ := t.(*afpacket.Context)
-	cDpdk, _ := t.(*dpdk.Context)
-
-	// Setup tech.
-	switch seq.Tech {
-	case "af_packet":
-		err := cAfpacket.Setup(dev, seq.Tcp.UseCookedSocket, int(seq.Threads))
-
-		if err != nil {
-			return fmt.Errorf("failed to setup AF_PACKET sequence: %v", err)
-		}
-
-	case "dpdk":
-		err := cDpdk.Setup(dev, int(seq.Threads))
-
-		if err != nil {
-			return fmt.Errorf("failed to setup DPDK sequence: %v", err)
-		}
-
-	default:
-		err := cAfxdp.Setup(dev, cli.AfXdp.Queue, cli.AfXdp.NeedWakeup, cli.AfXdp.SharedUmem, cli.AfXdp.ForceSkb, cli.AfXdp.ZeroCopy, int(threads))
-
-		if err != nil {
-			return fmt.Errorf("failed to setup AF_XDP sequence: %v", err)
-		}
-	}
-
 	// Determine static source IP if set.
 	var srcIp *net.IPAddr = nil
 
@@ -197,6 +167,8 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 
 	var wg sync.WaitGroup
 
+	cAfxdp, _ := t.(*afxdp.Context)
+
 	for k := range threads {
 		cfg.DebugMsg(1, "[SEQ %d] Spawning thread #%d for sequence...", idx, k)
 
@@ -246,6 +218,21 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 			}
 
 			seqLoc := &cfgLoc.Sequences[seqIdx-1]
+
+			// Create socket.
+			queueId := cli.AfXdp.Queue
+
+			if queueId < 0 {
+				queueId = int(k)
+			}
+
+			sock, err := cAfxdp.Setup(dev, queueId, cli.AfXdp.NeedWakeup, cli.AfXdp.SharedUmem, cli.AfXdp.ForceSkb, cli.AfXdp.ZeroCopy)
+
+			if err != nil {
+				cfg.DebugMsg(1, "[SEQ %d] Failed to create AF_XDP socket on thread #%d: %v", seqIdx, id, err)
+
+				return
+			}
 
 			// AF_XDP settings.
 			batchSize := cli.AfXdp.BatchSize
@@ -510,7 +497,7 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 				pkt := buf.Bytes()
 				pktLen := int(iph.Length) + 14
 
-				err = cAfxdp.SendPacket(pkt, pktLen, int(id-1), batchSize)
+				err = cAfxdp.SendPacket(sock, pkt, pktLen, batchSize)
 
 				if err != nil {
 					cfgLoc.DebugMsg(1, "[SEQ %d] Failed to send packet on thread #%d: %v", seqIdx, k+1, err)
@@ -533,16 +520,16 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 
 				// Check total counters and limits.
 				if seqLoc.MaxPkts > 0 && totPkts > seqLoc.MaxPkts {
-					return
+					break
 				}
 
 				if seqLoc.MaxBytes > 0 && totBytes > seqLoc.MaxBytes {
-					return
+					break
 				}
 
 				// Check time.
 				if endTime > 0 && now > endTime {
-					return
+					break
 				}
 
 				// Alternate payload if there are mulitple.
@@ -555,35 +542,18 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 
 				utils.SleepMicro(seqLoc.Delay)
 			}
+
+			// Cleanup socket.
+			err = cAfxdp.Cleanup(sock)
+
+			if err != nil {
+				cfgLoc.DebugMsg(1, "[SEQ %d] Failed to cleanup AF_XDP socket on thread #%d: %v", seqIdx, id, err)
+			}
 		}(k)
 	}
 
 	if seq.Block {
 		wg.Wait()
-	}
-
-	// Cleanup tech.
-	switch seq.Tech {
-	case "af_packet":
-		err := cAfpacket.Cleanup(int(seq.Threads))
-
-		if err != nil {
-			return fmt.Errorf("failed to cleanup AF_PACKET sequence: %v", err)
-		}
-
-	case "dpdk":
-		err := cDpdk.Cleanup(int(seq.Threads))
-
-		if err != nil {
-			return fmt.Errorf("failed to cleanup DPDK sequence: %v", err)
-		}
-
-	default:
-		err := cAfxdp.Cleanup(int(seq.Threads))
-
-		if err != nil {
-			return fmt.Errorf("failed to cleanup AF_XDP sequence: %v", err)
-		}
 	}
 
 	return nil
