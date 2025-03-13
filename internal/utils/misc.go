@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func GetCpuCount() int {
@@ -75,4 +76,10 @@ func ReadFileAndStoreBytes(p string) ([]byte, error) {
 	ret, err := os.ReadFile(p)
 
 	return ret, err
+}
+
+func SleepMicro(t uint64) {
+	if t > 0 {
+		time.Sleep(time.Duration(t) * time.Microsecond)
+	}
 }
