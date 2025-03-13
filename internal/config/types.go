@@ -6,22 +6,22 @@ type Debug struct {
 }
 
 type Eth struct {
-	SrcMac *string `json:"SrcMac"`
-	DstMac *string `json:"DstMac"`
+	SrcMac string `json:"SrcMac"`
+	DstMac string `json:"DstMac"`
 }
 
 type Ip4 struct {
 	Protocol string `json:"Protocol"`
 
-	SrcIp       *string  `json:"SrcIp"`
+	SrcIp       string   `json:"SrcIp"`
 	SrcIpRanges []string `json:"SrcIpRanges"`
 
 	DstIp string `json:"DstIp"`
 
 	Tos uint8 `json:"Tos"`
 
-	MinTtl uint16 `json:"MinTtl"`
-	MaxTtl uint16 `json:"MaxTtl"`
+	MinTtl uint8 `json:"MinTtl"`
+	MaxTtl uint8 `json:"MaxTtl"`
 
 	MinId uint16 `json:"MinId"`
 	MaxId uint16 `json:"MaxId"`
@@ -75,19 +75,19 @@ type Payload struct {
 	IsFile   bool `json:"IsFile"`
 	IsString bool `json:"IsString"`
 
-	Exact *string `json:"Exact"`
+	Exact string `json:"Exact"`
 }
 
 type Sequence struct {
 	Tech string `json:"Tech"`
 
-	Interface *string `json:"Interface"`
+	Interface string `json:"Interface"`
 
 	Block bool `json:"Block"`
 	Track bool `json:"Track"`
 
-	MaxPkts  bool `json:"MaxPkts"`
-	MaxBytes bool `json:"MaxBytes"`
+	MaxPkts  uint64 `json:"MaxPkts"`
+	MaxBytes uint64 `json:"MaxBytes"`
 
 	Pps uint64 `json:"Pps"`
 	Bps uint64 `json:"Bps"`
@@ -108,9 +108,9 @@ type Sequence struct {
 }
 
 type Config struct {
-	Debug     Debug   `json:"Debug"`
-	Interface *string `json:"Interface"`
-	SaveCfg   bool    `json:"SaveCfg"`
+	Debug     Debug  `json:"Debug"`
+	Interface string `json:"Interface"`
+	SaveCfg   bool   `json:"SaveCfg"`
 
 	Sequences []Sequence `json:"Sequences"`
 }

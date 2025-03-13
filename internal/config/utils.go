@@ -24,8 +24,8 @@ func (cfg *Config) List() {
 	fmt.Printf("\nGeneral Settings\n")
 	dev := "N/A"
 
-	if cfg.Interface != nil {
-		dev = *cfg.Interface
+	if len(cfg.Interface) > 0 {
+		dev = cfg.Interface
 	}
 
 	fmt.Printf("\tInterface => %s\n", dev)
@@ -38,8 +38,8 @@ func (cfg *Config) List() {
 
 			dev := "N/A"
 
-			if v.Interface != nil {
-				dev = *v.Interface
+			if len(v.Interface) > 0 {
+				dev = v.Interface
 			}
 
 			fmt.Printf("\t\tTech => %s\n", v.Tech)
@@ -56,16 +56,16 @@ func (cfg *Config) List() {
 
 			ethSrcMac := "AUTO"
 
-			if v.Eth.SrcMac != nil {
-				ethSrcMac = *v.Eth.SrcMac
+			if len(v.Eth.SrcMac) > 0 {
+				ethSrcMac = v.Eth.SrcMac
 			}
 
 			fmt.Printf("\t\t\tSrc MAC => %s\n", ethSrcMac)
 
 			ethDstMac := "AUTO"
 
-			if v.Eth.DstMac != nil {
-				ethDstMac = *v.Eth.DstMac
+			if len(v.Eth.DstMac) > 0 {
+				ethDstMac = v.Eth.DstMac
 			}
 
 			fmt.Printf("\t\t\tDst MAC => %s\n", ethDstMac)
@@ -76,8 +76,8 @@ func (cfg *Config) List() {
 
 			srcIp := "AUTO"
 
-			if v.Ip4.SrcIp != nil {
-				srcIp = *v.Ip4.SrcIp
+			if len(v.Ip4.SrcIp) > 0 {
+				srcIp = v.Ip4.SrcIp
 			}
 
 			fmt.Printf("\t\t\tSrc IP => %s\n", srcIp)
@@ -140,10 +140,10 @@ func (cfg *Config) List() {
 					fmt.Printf("\t\t\t\tIs File => %s\n", strconv.FormatBool(v2.IsFile))
 					fmt.Printf("\t\t\t\tIs String => %s\n", strconv.FormatBool(v2.IsString))
 
-					exact := ""
+					exact := "N/A"
 
-					if v2.Exact != nil {
-						exact = *v2.Exact
+					if len(v2.Exact) > 0 {
+						exact = v2.Exact
 					}
 
 					fmt.Printf("\t\t\t\tExact => %s\n", exact)
