@@ -1,29 +1,75 @@
 package network
 
 import (
+	"bytes"
 	"fmt"
+	"math/rand"
+	"net"
+	"os"
+	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/google/gopacket/layers"
 )
 
-const IPPROTO_ICMP = 1
-const IPPROTO_TCP = 6
-const IPPROTO_UDP = 17
+func GetMacOfInterface(dev string) ([]byte, error) {
+	var macAddr []byte
 
-func GetMacOfInterface(dev string) [6]byte {
-	var macAddr [6]byte
+	addrPath := fmt.Sprintf("/sys/class/net/%s/address", dev)
 
-	return macAddr
+	contents, err := os.ReadFile(addrPath)
+
+	if err != nil {
+		return macAddr, err
+	}
+
+	return MacAddrStrToArr(string(contents))
 }
 
-func GetGatewayMacAddr() [6]byte {
-	var macAddr [6]byte
+// getDefaultGateway retrieves the IP address of the default gateway
+func getDefaultGateway() (string, error) {
+	cmd := exec.Command("sh", "-c", "ip -4 route list 0/0 | awk '{print $3}'")
+	var out bytes.Buffer
+	cmd.Stdout = &out
 
-	return macAddr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("failed to get default gateway: %v", err)
+	}
+
+	gatewayIP := strings.TrimSpace(out.String())
+	if gatewayIP == "" {
+		return "", fmt.Errorf("no default gateway found")
+	}
+	return gatewayIP, nil
 }
 
-func MacAddrStrToArr(str string) ([6]byte, error) {
-	var macAddr [6]byte
+// GetGatewayMacAddr retrieves the MAC address of the default gateway
+func GetGatewayMacAddr() ([]byte, error) {
+	gatewayIP, err := getDefaultGateway()
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := exec.Command("sh", "-c", fmt.Sprintf("ip neigh | grep '%s ' | awk '{print $5}'", gatewayIP))
+	var out bytes.Buffer
+	cmd.Stdout = &out
+
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("failed to get gateway MAC: %v", err)
+	}
+
+	macStr := strings.TrimSpace(out.String())
+
+	if macStr == "" {
+		return nil, fmt.Errorf("could not retrieve gateway MAC address")
+	}
+
+	return MacAddrStrToArr(macStr)
+}
+
+func MacAddrStrToArr(str string) ([]byte, error) {
+	var macAddr []byte
 	parts := strings.Split(str, ":")
 
 	if len(parts) < 6 {
@@ -37,38 +83,79 @@ func MacAddrStrToArr(str string) ([6]byte, error) {
 			return macAddr, fmt.Errorf("failed to convert byte to uint at index %d: %v", i, err)
 		}
 
-		macAddr[i] = byte(bVal)
+		macAddr = append(macAddr, byte(bVal))
 	}
 
 	return macAddr, nil
 }
 
-func GetProtocolIdByStr(proto string) int {
+func GetProtocolIdByStr(proto string) (layers.IPProtocol, error) {
 	protoLower := strings.ToLower(proto)
 
 	switch protoLower {
 	case "tcp":
-		return IPPROTO_TCP
+		return layers.IPProtocolTCP, nil
 
 	case "icmp":
-		return IPPROTO_ICMP
+		return layers.IPProtocolICMPv4, nil
 
-	default:
-		return IPPROTO_UDP
+	case "udp":
+		return layers.IPProtocolUDP, nil
 	}
+
+	return layers.IPProtocolUDP, fmt.Errorf("invalid protocol")
 }
 
-func GetProtocolStrById(id int) string {
-	switch id {
-	case IPPROTO_TCP:
-		return "tcp"
+func GetProtocolStrById(proto layers.IPProtocol) (string, error) {
+	switch proto {
+	case layers.IPProtocolTCP:
+		return "tcp", nil
 
-	case IPPROTO_ICMP:
-		return "icmp"
+	case layers.IPProtocolICMPv4:
+		return "icmp", nil
 
-	case IPPROTO_UDP:
-		return "udp"
+	case layers.IPProtocolUDP:
+		return "udp", nil
 	}
 
-	return ""
+	return "", fmt.Errorf("protocol not found")
+}
+
+func GetIpStrFromRange(ipRange string, rng *rand.Rand) (uint32, error) {
+	var err error
+
+	// Split the IP range and retrieve CIDR if available (otherwise use 32).
+	parts := strings.Split(ipRange, "/")
+
+	cidr := 32
+
+	if len(parts) == 2 {
+		cidr, err = strconv.Atoi(parts[1])
+
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse CIDR range '%s': %v", parts[1], err)
+		}
+	}
+
+	ipStr := parts[0]
+
+	// Parse the network IP address to a 32-bit integer.
+	ip := net.ParseIP(ipStr).To4()
+
+	if ip == nil {
+		return 0, fmt.Errorf("failed to parse network IP '%s': %v", ipStr, err)
+	}
+
+	ipAddr := uint32(ip[0])<<24 | uint32(ip[1])<<16 | uint32(ip[2])<<8 | uint32(ip[3])
+
+	// Generate the subnet mask based on CIDR.
+	mask := uint32(1<<uint(32-cidr)) - 1
+
+	// Generate random number.
+	randNum := uint32(rng.Int31())
+
+	// Generate random IP.
+	randIp := (ipAddr &^ mask) | (randNum & mask)
+
+	return randIp, nil
 }
