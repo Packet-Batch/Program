@@ -276,15 +276,12 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 				// Retrieve current time.
 				now := time.Now().Unix()
 
-				// Retrieve packet length.
-				pktLen := uint64(0)
-
 				// Check packet counters.
 				if now > nextCounterUpdate {
 					nextCounterUpdate = now + 1
 
-					curPps = 1
-					curBps = pktLen
+					curPps = 0
+					curBps = 0
 				} else {
 					// Check PPS and BPS rate limits.
 					if seq.Pps > 0 && curPps > seq.Pps {
@@ -298,9 +295,6 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 
 						continue
 					}
-
-					curPps++
-					curBps += pktLen
 				}
 
 				// Check for IP range.
@@ -404,10 +398,11 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 				gopacket.SerializeLayers(buf, pktOpts, pktLayers...)
 
 				pkt := buf.Bytes()
+				pktLen := len(pkt)
 
 				switch seq.Tech {
 				case "af_xdp":
-					err = cAfxdp.SendPacket(pkt, len(pkt), int(k), cli.AfXdp.BatchSize)
+					err = cAfxdp.SendPacket(pkt, pktLen, int(k), cli.AfXdp.BatchSize)
 
 				case "af_packet":
 					err = cAfpacket.SendPacket(pkt, len(pkt), int(k))
@@ -421,7 +416,10 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 					continue
 				}
 
-				// Increment total counters.
+				// Increment packet counters.
+				curPps++
+				curBps += uint64(pktLen)
+
 				totPkts++
 				totBytes += uint64(pktLen)
 
