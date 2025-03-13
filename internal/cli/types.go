@@ -3,6 +3,21 @@ package cli
 type SeqOverride struct {
 	Interface string
 
+	Block int
+	Track int
+
+	MaxPkts  int64
+	MaxBytes int64
+
+	Pps int64
+	Bps int64
+
+	Time    int
+	Delay   int64
+	Threads int
+
+	ComputerCsums int
+
 	SrcMac string
 	DstMac string
 
@@ -18,9 +33,6 @@ type SeqOverride struct {
 
 	MinId int
 	MaxId int
-
-	L3Csum int
-	L4Csum int
 
 	SrcPort int
 	DstPort int

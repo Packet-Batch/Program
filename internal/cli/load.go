@@ -11,6 +11,18 @@ func (cli *Cli) Parse() {
 	// Sequence override
 	StringOpt(&cli.SeqOverride.Interface, "i", "interface", "", "The interface name")
 
+	IntOpt(&cli.SeqOverride.Block, "b", "block", -1, "Whether to block or not.")
+
+	Int64Opt(&cli.SeqOverride.MaxPkts, "", "max-pkts", -1, "The maximum packets to send.")
+	Int64Opt(&cli.SeqOverride.MaxBytes, "", "max-bytes", -1, "The maximum bytes to send.")
+
+	Int64Opt(&cli.SeqOverride.Pps, "", "pps", -1, "The maximum packets per second to send concurrently.")
+	Int64Opt(&cli.SeqOverride.Bps, "", "bps", -1, "The maximum bytes per second to send concurrently.")
+
+	IntOpt(&cli.SeqOverride.Time, "", "time", -1, "The maximum amount of time in seconds to run this sequence for.")
+	Int64Opt(&cli.SeqOverride.Delay, "", "delay", -1, "The delay between sending packets on each thread in micro-seconds.")
+	IntOpt(&cli.SeqOverride.Threads, "", "threads", -1, "The amount of threads to create that sends packets.")
+
 	StringOpt(&cli.SeqOverride.SrcMac, "", "smac", "", "The source MAC address.")
 	StringOpt(&cli.SeqOverride.DstMac, "", "dmac", "", "The destination MAC address.")
 
@@ -24,9 +36,6 @@ func (cli *Cli) Parse() {
 	IntOpt(&cli.SeqOverride.MaxTtl, "", "maxttl", -1, "The maximum TTL.")
 	IntOpt(&cli.SeqOverride.MinId, "", "minid", -1, "The minimum ID.")
 	IntOpt(&cli.SeqOverride.MaxId, "", "maxid", -1, "The maximum ID.")
-
-	IntOpt(&cli.SeqOverride.L3Csum, "", "l3csum", -1, "Calculate layer-3 checksum.")
-	IntOpt(&cli.SeqOverride.L4Csum, "", "l4csum", -1, "Calculate layer-4 checksum.")
 
 	IntOpt(&cli.SeqOverride.SrcPort, "", "sport", -1, "The layer-4 source port.")
 	IntOpt(&cli.SeqOverride.DstPort, "", "dport", -1, "The layer-4 destination port.")
