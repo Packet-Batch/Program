@@ -2,7 +2,6 @@ package sequence
 
 import (
 	"fmt"
-	"math/rand"
 	"net"
 	"time"
 
@@ -15,12 +14,16 @@ import (
 	"github.com/Packet-Batch/Program/internal/tech/dpdk"
 	"github.com/Packet-Batch/Program/internal/utils"
 	"github.com/google/gopacket"
+	"golang.org/x/exp/rand"
 
 	"github.com/google/gopacket/layers"
 )
 
 func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int) error {
 	var err error
+
+	// Generate base random seed.
+	rngBase := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	// Load tech.
 	t, err := tech.Load(seq.Tech)
@@ -84,8 +87,8 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 		}
 	}
 
-	cfg.DebugMsg(3, "[SEQ] Using src MAC => %x:%x:%x:%x:%x:%x", srcMac[0], srcMac[1], srcMac[2], srcMac[3], srcMac[4], srcMac[5])
-	cfg.DebugMsg(3, "[SEQ] Using dst MAC => %x:%x:%x:%x:%x:%x", dstMac[0], dstMac[1], dstMac[2], dstMac[3], dstMac[4], dstMac[5])
+	cfg.DebugMsg(3, "[SEQ %d] Using src MAC => %x:%x:%x:%x:%x:%x", idx, srcMac[0], srcMac[1], srcMac[2], srcMac[3], srcMac[4], srcMac[5])
+	cfg.DebugMsg(3, "[SEQ %d] Using dst MAC => %x:%x:%x:%x:%x:%x", idx, dstMac[0], dstMac[1], dstMac[2], dstMac[3], dstMac[4], dstMac[5])
 
 	cAfxdp, _ := t.(*afxdp.Context)
 	cAfpacket, _ := t.(*afpacket.Context)
@@ -115,61 +118,23 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 		}
 	}
 
-	// Create random seed.
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	buf := gopacket.NewSerializeBuffer()
-	pktOpts := gopacket.SerializeOptions{
-		ComputeChecksums: seq.ComputeCsums,
-	}
-	pktLayers := []gopacket.SerializableLayer{}
-
-	// Ethernet header.
-	eth := layers.Ethernet{
-		EthernetType: layers.EthernetTypeIPv4,
-		SrcMAC:       srcMac,
-		DstMAC:       dstMac,
-	}
-
-	// IP header.
-	iph := layers.IPv4{
-		Version:    4,
-		IHL:        5,
-		FragOffset: 0,
-		TOS:        seq.Ip4.Tos,
-	}
-
-	// Check for static IP fields.
-	if seq.Ip4.MinTtl == seq.Ip4.MaxTtl {
-		iph.TTL = seq.Ip4.MinTtl
-	}
-
-	if seq.Ip4.MinId == seq.Ip4.MaxId {
-		iph.Id = seq.Ip4.MinId
-	}
+	// Determine static source IP if set.
+	var srcIp *net.IPAddr = nil
 
 	if len(seq.Ip4.SrcIp) > 0 {
-		srcIp, err := net.ResolveIPAddr("ip", seq.Ip4.SrcIp)
+		srcIp, err = net.ResolveIPAddr("ip", seq.Ip4.SrcIp)
 
 		if err != nil {
 			return fmt.Errorf("failed to resolve source Ipv4 address '%s': %v", seq.Ip4.SrcIp, err)
 		}
-
-		iph.SrcIP = srcIp.IP
 	}
 
-	// Check and fill destination IP address.
-	if len(seq.Ip4.DstIp) < 1 {
-		return fmt.Errorf("no destination address set")
-	}
-
+	// Determine destination IP.
 	dstIp, err := net.ResolveIPAddr("ip", seq.Ip4.DstIp)
 
 	if err != nil {
 		return fmt.Errorf("failed to resolve destination IP address'%s': %v", seq.Ip4.DstIp, err)
 	}
-
-	iph.DstIP = dstIp.IP
 
 	// Check and set IP protocol.
 	proto, err := network.GetProtocolIdByStr(seq.Ip4.Protocol)
@@ -178,57 +143,16 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 		return fmt.Errorf("failed to find protocol by string: %v", err)
 	}
 
-	iph.Protocol = proto
+	// Determine static payload.
+	var staticPl []byte
 
-	pktLayers = append(pktLayers, &eth, &iph)
-
-	// Handle layer-4 protocols.
-	tcph := layers.TCP{}
-	udph := layers.UDP{}
-	icmph := layers.ICMPv4{}
-
-	switch proto {
-	case layers.IPProtocolTCP:
-		if seq.Tcp.SrcPort > 0 {
-			tcph.SrcPort = layers.TCPPort(seq.Tcp.SrcPort)
-		}
-
-		if seq.Tcp.DstPort > 0 {
-			tcph.DstPort = layers.TCPPort(seq.Tcp.DstPort)
-		}
-
-		pktLayers = append(pktLayers, &tcph)
-
-	case layers.IPProtocolUDP:
-		if seq.Udp.SrcPort > 0 {
-			udph.SrcPort = layers.UDPPort(seq.Udp.SrcPort)
-		}
-
-		if seq.Udp.DstPort > 0 {
-			udph.DstPort = layers.UDPPort(seq.Tcp.DstPort)
-		}
-
-		pktLayers = append(pktLayers, &udph)
-
-	case layers.IPProtocolICMPv4:
-		icmph.TypeCode = layers.ICMPv4TypeCode((uint16(seq.Icmp.Type) << 8) | uint16(seq.Icmp.Code))
-
-		pktLayers = append(pktLayers, &icmph)
-	}
-
-	// Handle payload(s).
-	var pl gopacket.Payload
-
-	// Check if we have a static payload.
 	if len(seq.Payloads) > 0 {
-		pktLayers = append(pktLayers, &pl)
-
 		if len(seq.Payloads) == 1 {
 			v := seq.Payloads[0]
 
 			if len(v.Exact) > 0 {
 				if v.IsString {
-					pl = []byte(v.Exact)
+					staticPl = []byte(v.Exact)
 				} else {
 					data, err := utils.HexadecimalsToBytes(v.Exact)
 
@@ -236,10 +160,10 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 						return fmt.Errorf("failed to parse static payload data as hexadecimal: %v", err)
 					}
 
-					pl = data
+					staticPl = data
 				}
 			} else if v.MinLen == v.MaxLen && v.IsStatic {
-				pl = utils.GenRandBytesSingle(int(v.MinLen), rng)
+				staticPl = utils.GenRandBytesSingle(int(v.MinLen), rngBase)
 			}
 		}
 	}
@@ -261,7 +185,7 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 	}
 
 	for k := range threads {
-		cfg.DebugMsg(1, "Spawning thread #%d for sequence...", k)
+		cfg.DebugMsg(1, "[SEQ %d] Spawning thread #%d for sequence...", idx, k)
 
 		var curPl *config.Payload = nil
 		curPlIdx := 0
@@ -272,11 +196,101 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 
 		// Spawn thread.
 		go func() {
+			// Generate initial seed for separate thread.
+			rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+			// Create packet buffer and layers.
+			buf := gopacket.NewSerializeBuffer()
+			pktOpts := gopacket.SerializeOptions{
+				ComputeChecksums: seq.ComputeCsums,
+			}
+			pktLayers := []gopacket.SerializableLayer{}
+
+			// Create ethernet layer.
+			eth := layers.Ethernet{
+				EthernetType: layers.EthernetTypeIPv4,
+				SrcMAC:       srcMac,
+				DstMAC:       dstMac,
+			}
+
+			// Create IPv4 layer.
+			iph := layers.IPv4{
+				Version:    4,
+				IHL:        5,
+				FragOffset: 0,
+				TOS:        seq.Ip4.Tos,
+				DstIP:      dstIp.IP,
+				Protocol:   proto,
+			}
+
+			// Check for static IPv4 fields.
+			if seq.Ip4.MinTtl == seq.Ip4.MaxTtl {
+				iph.TTL = seq.Ip4.MinTtl
+			}
+
+			if seq.Ip4.MinId == seq.Ip4.MaxId {
+				iph.Id = seq.Ip4.MinId
+			}
+
+			if srcIp != nil {
+				iph.SrcIP = srcIp.IP
+			}
+
+			// Add base layers to layers to serialize.
+			pktLayers = append(pktLayers, &eth, &iph)
+
+			// Create and handle layer-4 layers.
+			tcph := layers.TCP{}
+			udph := layers.UDP{}
+			icmph := layers.ICMPv4{}
+
+			switch proto {
+			case layers.IPProtocolTCP:
+				if seq.Tcp.SrcPort > 0 {
+					tcph.SrcPort = layers.TCPPort(seq.Tcp.SrcPort)
+				}
+
+				if seq.Tcp.DstPort > 0 {
+					tcph.DstPort = layers.TCPPort(seq.Tcp.DstPort)
+				}
+
+				pktLayers = append(pktLayers, &tcph)
+
+			case layers.IPProtocolUDP:
+				if seq.Udp.SrcPort > 0 {
+					udph.SrcPort = layers.UDPPort(seq.Udp.SrcPort)
+				}
+
+				if seq.Udp.DstPort > 0 {
+					udph.DstPort = layers.UDPPort(seq.Tcp.DstPort)
+				}
+
+				pktLayers = append(pktLayers, &udph)
+
+			case layers.IPProtocolICMPv4:
+				icmph.TypeCode = layers.ICMPv4TypeCode((uint16(seq.Icmp.Type) << 8) | uint16(seq.Icmp.Code))
+
+				pktLayers = append(pktLayers, &icmph)
+			}
+
+			// Create payload.
+			var pl gopacket.Payload
+
+			// Check for static payload.
+			if len(staticPl) > 0 {
+				pktLayers = append(pktLayers, &pl)
+
+				pl = staticPl
+			}
+
 			for {
+				// Regenerate seed.
+				rng = rand.New(rand.NewSource(time.Now().UnixNano()))
+
 				// Retrieve current time.
 				now := time.Now().Unix()
 
-				// Check packet counters.
+				// Check packet rates.
 				if now > nextCounterUpdate {
 					nextCounterUpdate = now + 1
 
@@ -297,7 +311,7 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 					}
 				}
 
-				// Check for IP range.
+				// Check for random source IP from range.
 				if len(seq.Ip4.SrcIpRanges) > 0 {
 					ipRange := ""
 
@@ -322,10 +336,19 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 					iph.SrcIP = network.U32ToNetIp(randIp)
 				}
 
+				// Generate random TTL and ID if needed.
+				if seq.Ip4.MinTtl != seq.Ip4.MaxTtl {
+					iph.TTL = uint8(utils.GetRandInt(int(seq.Ip4.MinTtl), int(seq.Ip4.MaxTtl), rng))
+				}
+
+				if seq.Ip4.MinId != seq.Ip4.MaxId {
+					iph.Id = uint16(utils.GetRandInt(int(seq.Ip4.MinId), int(seq.Ip4.MaxId), rng))
+				}
+
 				// Handle layer-4 protocols.
 				switch iph.Protocol {
 				case layers.IPProtocolTCP:
-					// Check for random TCP ports.
+					// Generate random TCP ports if needed.
 					if seq.Tcp.SrcPort < 1 {
 						tcph.SrcPort = layers.TCPPort(uint16(utils.GetRandInt(1, 65535, rng)))
 					}
@@ -335,7 +358,7 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 					}
 
 				case layers.IPProtocolUDP:
-					// Check for random UDP ports.
+					// Generate random UDP ports if needed.
 					if seq.Udp.SrcPort < 1 {
 						udph.SrcPort = layers.UDPPort(uint16(utils.GetRandInt(1, 65535, rng)))
 					}
@@ -363,7 +386,7 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 								if curPl.IsString {
 									pl = fData
 								} else {
-									pl, err = utils.HexadecimalsToBytes(string(fData))
+									data, err := utils.HexadecimalsToBytes(string(fData))
 
 									if err != nil {
 										cfg.DebugMsg(1, "[SEQ %d] Failed to parse payload data from file '%s' in hexadecimal: %v", idx, curPl.Exact, err)
@@ -372,12 +395,14 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 
 										continue
 									}
+
+									pl = data
 								}
 							} else {
 								if curPl.IsString {
 									pl = []byte(curPl.Exact)
 								} else {
-									pl, err = utils.HexadecimalsToBytes(curPl.Exact)
+									data, err := utils.HexadecimalsToBytes(curPl.Exact)
 
 									if err != nil {
 										cfg.DebugMsg(1, "[SEQ %d] Failed to parse payload data as hexadecimal: %v", idx, err)
@@ -386,10 +411,14 @@ func ProcessSeq(cfg *config.Config, cli *cli.Cli, seq *config.Sequence, idx int)
 
 										continue
 									}
+
+									pl = data
 								}
 							}
 						} else {
+							data := utils.GenRandBytes(int(curPl.MinLen), int(curPl.MaxLen), rng)
 
+							pl = data
 						}
 					}
 				}
