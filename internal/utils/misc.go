@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
 )
 
 func GetCpuCount() int {
-	return 0
+	return runtime.NumCPU()
 }
 
 // parseHexByte converts a hex string to a byte
