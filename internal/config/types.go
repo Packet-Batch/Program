@@ -88,6 +88,8 @@ type Sequence struct {
 	Delay   uint64 `json:"Delay"`
 	Threads uint8  `json:"Threads"`
 
+	RandInterval int64 `json:"RandInterval"`
+
 	Includes []string `json:"Includes"`
 
 	Eth  Eth  `json:"Eth"`
