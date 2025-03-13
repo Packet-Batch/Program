@@ -25,8 +25,6 @@ type Ip4 struct {
 
 	MinId uint16 `json:"MinId"`
 	MaxId uint16 `json:"MaxId"`
-
-	Csum bool `json:"DoCsum"`
 }
 
 type TcpFlags struct {
@@ -48,22 +46,16 @@ type Tcp struct {
 	UseOneConnection bool `json:"UseOneConnection"`
 
 	Flags TcpFlags `json:"Flags"`
-
-	Csum bool `json:"Csum"`
 }
 
 type Udp struct {
 	SrcPort uint16 `json:"SrcPort"`
 	DstPort uint16 `json:"DstPort"`
-
-	Csum bool `json:"Csum"`
 }
 
 type Icmp struct {
 	Code uint8 `json:"Code"`
 	Type uint8 `json:"Type"`
-
-	Csum bool `json:"Csum"`
 }
 
 type Payload struct {
@@ -103,6 +95,8 @@ type Sequence struct {
 	Tcp  Tcp  `json:"Tcp"`
 	Udp  Udp  `json:"Udp"`
 	Icmp Icmp `json:"Icmp"`
+
+	ComputeCsums bool `json:"ComputeCsums"`
 
 	Payloads []Payload `json:"Payloads"`
 }

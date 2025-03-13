@@ -51,6 +51,7 @@ func (cfg *Config) List() {
 			fmt.Printf("\t\tTime => %s\n", strconv.Itoa(v.Time))
 			fmt.Printf("\t\tDelay => %s\n", strconv.FormatUint(v.Delay, 10))
 			fmt.Printf("\t\tThreads => %s\n", strconv.Itoa(int(v.Threads)))
+			fmt.Printf("\t\tCompute Checksums => %s\n\n", strconv.FormatBool(v.ComputeCsums))
 
 			fmt.Printf("\n\t\tEthernet\n")
 
@@ -96,7 +97,6 @@ func (cfg *Config) List() {
 			fmt.Printf("\t\t\tMax TTL => %s\n", strconv.Itoa(int(v.Ip4.MaxTtl)))
 			fmt.Printf("\t\t\tMin ID => %s\n", strconv.Itoa(int(v.Ip4.MinId)))
 			fmt.Printf("\t\t\tMax ID => %s\n", strconv.Itoa(int(v.Ip4.MaxId)))
-			fmt.Printf("\t\t\tChecksum => %s\n", strconv.FormatBool(v.Ip4.Csum))
 
 			fmt.Printf("\n\t\tTCP\n")
 
@@ -104,7 +104,6 @@ func (cfg *Config) List() {
 			fmt.Printf("\t\t\tDst Port => %s\n", strconv.Itoa(int(v.Tcp.DstPort)))
 			fmt.Printf("\t\t\tUse Cooked Socket => %s\n", strconv.FormatBool(v.Tcp.UseCookedSocket))
 			fmt.Printf("\t\t\tUse One Connection => %s\n", strconv.FormatBool(v.Tcp.UseOneConnection))
-			fmt.Printf("\t\t\tChecksum => %s\n", strconv.FormatBool(v.Tcp.Csum))
 
 			fmt.Printf("\n\t\t\tFlags\n")
 
@@ -121,13 +120,11 @@ func (cfg *Config) List() {
 
 			fmt.Printf("\t\t\tSrc Port => %s\n", strconv.Itoa(int(v.Udp.SrcPort)))
 			fmt.Printf("\t\t\tDst Port => %s\n", strconv.Itoa(int(v.Udp.DstPort)))
-			fmt.Printf("\t\t\tChecksum => %s\n", strconv.FormatBool(v.Udp.Csum))
 
 			fmt.Printf("\n\t\tICMP\n")
 
 			fmt.Printf("\t\t\tCode => %s\n", strconv.Itoa(int(v.Icmp.Code)))
 			fmt.Printf("\t\t\tType => %s\n", strconv.Itoa(int(v.Icmp.Type)))
-			fmt.Printf("\t\t\tChecksum => %s\n", strconv.FormatBool(v.Icmp.Csum))
 
 			fmt.Printf("\n\t\tPayloads\n")
 			if len(v.Payloads) > 0 {
