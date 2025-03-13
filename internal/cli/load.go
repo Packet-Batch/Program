@@ -23,6 +23,8 @@ func (cli *Cli) Parse() {
 	Int64Opt(&cli.SeqOverride.Delay, "", "delay", -1, "The delay between sending packets on each thread in micro-seconds.")
 	IntOpt(&cli.SeqOverride.Threads, "", "threads", -1, "The amount of threads to create that sends packets.")
 
+	IntOpt(&cli.SeqOverride.ComputeCsums, "", "csum", -1, "Whether to calculate layer 3 and 4 checksums automatically.")
+
 	StringOpt(&cli.SeqOverride.SrcMac, "", "smac", "", "The source MAC address.")
 	StringOpt(&cli.SeqOverride.DstMac, "", "dmac", "", "The destination MAC address.")
 

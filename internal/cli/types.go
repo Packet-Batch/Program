@@ -16,7 +16,7 @@ type SeqOverride struct {
 	Delay   int64
 	Threads int
 
-	ComputerCsums int
+	ComputeCsums int
 
 	SrcMac string
 	DstMac string
