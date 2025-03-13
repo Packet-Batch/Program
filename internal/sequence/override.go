@@ -229,10 +229,10 @@ func CheckFirstSeqOverride(cfg *config.Config, cli *cli.Cli) bool {
 		seq.Icmp.Type = uint8(or.IcmpType)
 	}
 
-	if or.ComputerCsums > -1 {
+	if or.ComputeCsums > -1 {
 		changed = true
 
-		seq.ComputeCsums = utils.IntToBool(or.ComputerCsums)
+		seq.ComputeCsums = utils.IntToBool(or.ComputeCsums)
 	}
 
 	if or.PlMinLen > -1 || or.PlMaxLen > -1 || or.PlStatic > -1 || or.PlFile > -1 || or.PlString > -1 || len(or.PlExact) > 0 {
