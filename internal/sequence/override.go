@@ -61,7 +61,7 @@ func CheckFirstSeqOverride(cfg *config.Config, cli *cli.Cli) bool {
 	if or.Threads > -1 {
 		changed = true
 
-		seq.Threads = uint8(or.Threads)
+		seq.Threads = or.Threads
 	}
 
 	if len(or.SrcMac) > 0 {

@@ -6,6 +6,8 @@ import (
 	"github.com/Packet-Batch/Program/internal/cli"
 	"github.com/Packet-Batch/Program/internal/config"
 	"github.com/Packet-Batch/Program/internal/sequence"
+
+	_ "github.com/Packet-Batch/Program/internal/tech"
 )
 
 func main() {

@@ -5,7 +5,6 @@ package afxdp
 #include <dlfcn.h>
 #include <stdlib.h>
 
-
 extern void* get_function(void* handle, const char* funcname);
 
 int callCleanup(void* f, void* xsk) {

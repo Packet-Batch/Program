@@ -86,7 +86,7 @@ type Sequence struct {
 
 	Time    int    `json:"Time"`
 	Delay   uint64 `json:"Delay"`
-	Threads uint8  `json:"Threads"`
+	Threads int    `json:"Threads"`
 
 	RandInterval int64 `json:"RandInterval"`
 
