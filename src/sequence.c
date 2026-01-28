@@ -11,6 +11,7 @@
 #include <netdb.h>
 
 pthread_t threads[MAX_THREADS];
+int threads_is_joined[MAX_THREADS] = {0};
 int thread_cnt = 0;
 
 // Total counters.
@@ -775,7 +776,7 @@ void seq_send(const char *interface, sequence_t seq, u16 seq_cnt2, cmd_line_t cm
 
     if (seq.ip.src_ip != NULL)
     {
-        // Resolve source hostname/IP address.
+        // Create hints structure for getaddrinfo() to hint for correct hostname.
         struct addrinfo hints = {0};
 
         hints.ai_family = AF_INET;
@@ -795,6 +796,7 @@ void seq_send(const char *interface, sequence_t seq, u16 seq_cnt2, cmd_line_t cm
 
         for (rp = res; rp != NULL; rp = rp->ai_next)
         {
+            // Return first AF_INET address found since that should indicate first IPv4 address.
             if (rp->ai_family == AF_INET)
             {
                 ip = ((struct sockaddr_in *)rp->ai_addr)->sin_addr.s_addr;
@@ -845,7 +847,8 @@ void seq_send(const char *interface, sequence_t seq, u16 seq_cnt2, cmd_line_t cm
         return;
     }
 
-    // Increase thread stack size for high-throughput sequences.
+    // Intialize thread attributes.
+    // Feel free to uncomment the setstacksize if you'd like to increase the stack size of each thread (shouldn't be needed).
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     // pthread_attr_setstacksize(&attr, 16 * 1024 * 1024);
@@ -905,6 +908,9 @@ void seq_send(const char *interface, sequence_t seq, u16 seq_cnt2, cmd_line_t cm
         for (int i = 0; i < t_cnt; i++)
         {
             pthread_join(threads[old_thread_cnt + i], NULL);
+
+            // Ensure we don't cancel this thread when the program ends.
+            threads_is_joined[old_thread_cnt + i] = 1;
         }
     }
 }
@@ -918,6 +924,12 @@ void shutdown_prog(config_t *cfg)
 {
     for (int i = 0; i < thread_cnt; i++)
     {
+        // If the thread is already joined, pthread_cancel() will cause segfault. Skip it.
+        if (threads_is_joined[i] == 1)
+        {
+            continue;
+        }
+
         pthread_cancel(threads[i]);
     }
 
