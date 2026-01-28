@@ -64,8 +64,7 @@ void *thread_hdl(void *temp)
     }
 
     // Payloads.
-    u8 **payloads;
-    payloads = malloc(MAX_PAYLOADS * sizeof(u8 *));
+    u8 **payloads = malloc(MAX_PAYLOADS * sizeof(u8 *));
 
     if (payloads != NULL)
     {
@@ -537,6 +536,10 @@ void *thread_hdl(void *temp)
             }
         }
 
+        // Intiailize counter holders now and increment so we aren't incrementing as much.
+        int pkt_iter = 0;
+        u64 byt_iter = 0;
+
         // Loop through each payload.
         for (int i = 0; i < ti->seq.pl_cnt; i++)
         {
@@ -618,6 +621,9 @@ void *thread_hdl(void *temp)
                 memcpy(pkts + (pkts_cnt * MAX_PCKT_LEN), buffer, pckt_len[i]);
                 pkts_len[pkts_cnt] = pckt_len[i];
                 pkts_cnt++;
+
+                pkt_iter++;
+                byt_iter += pckt_len[i];
             }
 
             // Send packet out.
@@ -651,29 +657,7 @@ void *thread_hdl(void *temp)
                     dstport = ntohs(tcph->dest);
                 }
 
-                fprintf(stdout, "[%d][%d] Sent %d bytes of data from %s:%d to %s:%d.\n", seq_num, i + 1, pckt_len[i], (ti->seq.ip.src_ip != NULL) ? ti->seq.ip.src_ip : s_ip, srcport, ti->seq.ip.dst_ip, dstport);
-            }
-
-            // Increment total packets and bytes if needed.
-            if (ti->seq.max_pckts > 0 || ti->seq.track)
-            {
-                __sync_add_and_fetch(&total_pckts[ti->seq_cnt], 1);
-            }
-
-            if (ti->seq.max_bytes > 0 || ti->seq.track)
-            {
-                __sync_add_and_fetch(&total_bytes[ti->seq_cnt], pckt_len[i]);
-            }
-
-            // Increment per-second packets and bytes if needed.
-            if (ti->seq.pps > 0)
-            {
-                __sync_add_and_fetch(&cur_pps[ti->seq_cnt], 1);
-            }
-
-            if (ti->seq.bps > 0)
-            {
-                __sync_add_and_fetch(&cur_bps[ti->seq_cnt], pckt_len[i]);
+                fprintf(stdout, "[%d][%d] Sent %d bytes of data from %s:%d to %s:%d (batch sz => %d).\n", seq_num, i + 1, pckt_len[i], (ti->seq.ip.src_ip != NULL) ? ti->seq.ip.src_ip : s_ip, srcport, ti->seq.ip.dst_ip, dstport, ti->batch_size);
             }
 
             // Check for delay.
@@ -681,6 +665,28 @@ void *thread_hdl(void *temp)
             {
                 usleep(ti->seq.delay);
             }
+        }
+
+        // Increment total packets and bytes if needed.
+        if (ti->seq.max_pckts > 0 || ti->seq.track)
+        {
+            __sync_add_and_fetch(&total_pckts[ti->seq_cnt], pkt_iter);
+        }
+
+        if (ti->seq.max_bytes > 0 || ti->seq.track)
+        {
+            __sync_add_and_fetch(&total_bytes[ti->seq_cnt], byt_iter);
+        }
+
+        // Increment per-second packets and bytes if needed.
+        if (ti->seq.pps > 0)
+        {
+            __sync_add_and_fetch(&cur_pps[ti->seq_cnt], pkt_iter);
+        }
+
+        if (ti->seq.bps > 0)
+        {
+            __sync_add_and_fetch(&cur_bps[ti->seq_cnt], byt_iter);
         }
 
         // Check total packet count.

@@ -41,10 +41,12 @@ int main(int argc, char *argv[])
 
     // Create AF_XDP-specific command line variable and set defaults.
     cmd_line_af_xdp_t cmd_af_xdp = {0};
-    cmd_af_xdp.batch_size = 1;
+    cmd_af_xdp.batch_size = 64;
 
     // Parse AF_XDP-specific command line.
     optind = 0;
+    optopt = 0;
+
     parse_cmd_line_af_xdp(&cmd_af_xdp, argc, argv);
 
     // Set global variables in AF_XDP program.
@@ -104,6 +106,7 @@ int main(int argc, char *argv[])
     }
 
     // Raise RLImit.
+    /*
     struct rlimit rl;
     rl.rlim_cur = RLIM_INFINITY;
     rl.rlim_max = RLIM_INFINITY;
@@ -112,6 +115,7 @@ int main(int argc, char *argv[])
     {
         fprintf(stderr, "Failed to set stack limit to unlimited\n");
     }
+    */
 
     // Setup signals to exit the program.
     signal(SIGINT, sign_hdl);

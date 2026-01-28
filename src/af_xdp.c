@@ -5,7 +5,7 @@
 u32 xdp_flags = XDP_FLAGS_DRV_MODE;
 u32 bind_flags = XDP_USE_NEED_WAKEUP;
 int is_shared_umem = 0;
-u16 batch_size = 2048;
+u16 batch_size = 64;
 int static_queue_id = 0;
 int queue_id = 0;
 
