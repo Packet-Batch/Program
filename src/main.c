@@ -4,9 +4,9 @@ config_t *cfg = NULL;
 
 /**
  * Signal handler to shut down the program.
- * 
+ *
  * @return Void
-*/
+ */
 void sign_hdl(int sig)
 {
     shutdown_prog(cfg);
@@ -14,12 +14,12 @@ void sign_hdl(int sig)
 
 /**
  * The main program.
- * 
+ *
  * @param argc The amount of arguments.
  * @param argv An array of arguments passed to program.
- * 
+ *
  * @return Int (exit code)
-*/
+ */
 int main(int argc, char *argv[])
 {
     // Create command line structure.
@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
     if (cmd.cli)
     {
         fprintf(stdout, "Using command line...\n");
-        log = 0;    
+        log = 0;
     }
 
     parse_config(cmd.config, cfg, 0, &seq_cnt, log);

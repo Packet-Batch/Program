@@ -23,9 +23,9 @@
 #define NUM_FRAMES 4096
 #define FRAME_SIZE XSK_UMEM__DEFAULT_FRAME_SIZE
 #define INVALID_UMEM_FRAME UINT64_MAX
-//#define DEBUG
+// #define DEBUG
 
-typedef struct xsk_umem_info 
+typedef struct xsk_umem_info
 {
     struct xsk_ring_prod fq;
     struct xsk_ring_cons cq;
@@ -33,7 +33,7 @@ typedef struct xsk_umem_info
     void *buffer;
 } xsk_umem_info_t;
 
-typedef struct xsk_socket 
+typedef struct xsk_socket
 {
     struct xsk_ring_cons *rx;
     struct xsk_ring_prod *tx;

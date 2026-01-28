@@ -33,7 +33,7 @@
 #include "af_xdp.h"
 #include "main.h"
 
-//#define VERY_RANDOM
+// #define VERY_RANDOM
 
 #define MAX_PCKT_LEN 0xFFFF
 #define MAX_THREADS 4096
