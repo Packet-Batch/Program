@@ -6,6 +6,10 @@
 #include <sys/random.h>
 #endif
 
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+
 pthread_t threads[MAX_THREADS];
 int thread_cnt = 0;
 
@@ -25,11 +29,11 @@ u16 seq_cnt;
 
 /**
  * The thread handler for sending/receiving.
- * 
+ *
  * @param data Data (struct thread_info) for the sequence.
- * 
+ *
  * @return Void
-**/
+ **/
 void *thread_hdl(void *temp)
 {
     // Cast data as thread info.
@@ -48,7 +52,7 @@ void *thread_hdl(void *temp)
     // Payloads.
     u8 **payloads;
     payloads = malloc(MAX_PAYLOADS * sizeof(u8 *));
-    
+
     if (payloads != NULL)
     {
         for (int i = 0; i < MAX_PAYLOADS; i++)
@@ -96,7 +100,7 @@ void *thread_hdl(void *temp)
     if (sock_fd < 0)
     {
         fprintf(stderr, "[%d] Error setting up AF_XDP socket on thread.\n", seq_num);
-        
+
         // Attempt to cleanup socket.
         cleanup_socket(xsk);
 
@@ -126,7 +130,7 @@ void *thread_hdl(void *temp)
     if (dst_mac[0] == 0 && dst_mac[1] == 0 && dst_mac[2] == 0 && dst_mac[3] == 0 && dst_mac[4] == 0 && dst_mac[5] == 0)
     {
         // Retrieve the default gateway's MAC address and store it in dst_mac.
-        get_gw_mac((u8 *) &dst_mac);
+        get_gw_mac((u8 *)&dst_mac);
     }
 
     if (ti->cmd.verbose)
@@ -185,76 +189,128 @@ void *thread_hdl(void *temp)
     // Check for static source IP.
     if (ti->seq.ip.src_ip != NULL)
     {
-        struct in_addr saddr;
-        inet_aton(ti->seq.ip.src_ip, &saddr);
+        // Resolve source hostname/IP address.
+        struct addrinfo hints = {0};
 
-        iph->saddr = saddr.s_addr; 
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = SOCK_RAW;
+        hints.ai_protocol = 0;
+
+        struct addrinfo *res, *rp;
+
+        if (getaddrinfo(ti->seq.ip.src_ip, NULL, &hints, &res) != 0)
+        {
+            fprintf(stderr, "[%d] ERROR - Could not resolve source IP address (%s) :: %s.\n", seq_num, ti->seq.ip.src_ip, strerror(errno));
+
+            pthread_exit(NULL);
+        }
+
+        u32 ip = 0;
+
+        for (rp = res; rp != NULL; rp = rp->ai_next)
+        {
+            if (rp->ai_family == AF_INET)
+            {
+                ip = ((struct sockaddr_in *)rp->ai_addr)->sin_addr.s_addr;
+
+                break;
+            }
+        }
+
+        freeaddrinfo(res);
+
+        iph->saddr = ip;
     }
 
-    // Destination IP.
-    struct in_addr daddr;
-    inet_aton(ti->seq.ip.dst_ip, &daddr);
+    // Resolve destination hostname/IP address.
+    struct addrinfo hints = {0};
 
-    iph->daddr = daddr.s_addr;
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_RAW;
+    hints.ai_protocol = 0;
+
+    struct addrinfo *res, *rp;
+
+    if (getaddrinfo(ti->seq.ip.dst_ip, NULL, &hints, &res) != 0)
+    {
+        fprintf(stderr, "[%d] ERROR - Could not resolve destination IP address (%s) :: %s.\n", seq_num, ti->seq.ip.dst_ip, strerror(errno));
+
+        pthread_exit(NULL);
+    }
+
+    u32 ip = 0;
+
+    for (rp = res; rp != NULL; rp = rp->ai_next)
+    {
+        if (rp->ai_family == AF_INET)
+        {
+            ip = ((struct sockaddr_in *)rp->ai_addr)->sin_addr.s_addr;
+
+            break;
+        }
+    }
+
+    freeaddrinfo(res);
+    iph->daddr = ip;
 
     // Handle layer-4 header (UDP, TCP, or ICMP).
     switch (protocol)
     {
-        case IPPROTO_UDP:
-            udph = (struct udphdr *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4));
-            l4_len = sizeof(struct udphdr);
+    case IPPROTO_UDP:
+        udph = (struct udphdr *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4));
+        l4_len = sizeof(struct udphdr);
 
-            // Check for static source/destination ports.
-            if (ti->seq.udp.src_port > 0)
-            {
-                udph->source = htons(ti->seq.udp.src_port);
-            }
+        // Check for static source/destination ports.
+        if (ti->seq.udp.src_port > 0)
+        {
+            udph->source = htons(ti->seq.udp.src_port);
+        }
 
-            if (ti->seq.udp.dst_port > 0)
-            {
-                udph->dest = htons(ti->seq.udp.dst_port);
-            }
+        if (ti->seq.udp.dst_port > 0)
+        {
+            udph->dest = htons(ti->seq.udp.dst_port);
+        }
 
-            break;
-        
-        case IPPROTO_TCP:
-            tcph = (struct tcphdr *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4));
+        break;
 
-            tcph->doff = 5;
-            l4_len = (tcph->doff * 4);
+    case IPPROTO_TCP:
+        tcph = (struct tcphdr *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4));
 
-            // Check for static source/destination ports.
-            if (ti->seq.tcp.src_port > 0)
-            {
-                tcph->source = htons(ti->seq.tcp.src_port);
-            }
+        tcph->doff = 5;
+        l4_len = (tcph->doff * 4);
 
-            if (ti->seq.tcp.dst_port > 0)
-            {
-                tcph->dest = htons(ti->seq.tcp.dst_port);
-            }
+        // Check for static source/destination ports.
+        if (ti->seq.tcp.src_port > 0)
+        {
+            tcph->source = htons(ti->seq.tcp.src_port);
+        }
 
-            // Flags.
-            tcph->syn = ti->seq.tcp.syn;
-            tcph->ack = ti->seq.tcp.ack;
-            tcph->psh = ti->seq.tcp.psh;
-            tcph->fin = ti->seq.tcp.fin;
-            tcph->rst = ti->seq.tcp.rst;
-            tcph->urg = ti->seq.tcp.urg;
-            tcph->ece = ti->seq.tcp.ece;
-            tcph->cwr = ti->seq.tcp.cwr;
+        if (ti->seq.tcp.dst_port > 0)
+        {
+            tcph->dest = htons(ti->seq.tcp.dst_port);
+        }
 
-            break;
+        // Flags.
+        tcph->syn = ti->seq.tcp.syn;
+        tcph->ack = ti->seq.tcp.ack;
+        tcph->psh = ti->seq.tcp.psh;
+        tcph->fin = ti->seq.tcp.fin;
+        tcph->rst = ti->seq.tcp.rst;
+        tcph->urg = ti->seq.tcp.urg;
+        tcph->ece = ti->seq.tcp.ece;
+        tcph->cwr = ti->seq.tcp.cwr;
 
-        case IPPROTO_ICMP:
-            icmph = (struct icmphdr *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4));
-            l4_len = sizeof(struct icmphdr);
+        break;
 
-            // Set code and type.
-            icmph->code = ti->seq.icmp.code;
-            icmph->type = ti->seq.icmp.type;
+    case IPPROTO_ICMP:
+        icmph = (struct icmphdr *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4));
+        l4_len = sizeof(struct icmphdr);
 
-            break;
+        // Set code and type.
+        icmph->code = ti->seq.icmp.code;
+        icmph->type = ti->seq.icmp.type;
+
+        break;
     }
 
     // Initialize payload data.
@@ -269,7 +325,7 @@ void *thread_hdl(void *temp)
         if (pl->exact != NULL)
         {
             pl->is_static = 1;
-            
+
             char *pl_str = NULL;
 
             // Check if payload is file.
@@ -307,8 +363,8 @@ void *thread_hdl(void *temp)
             {
                 pl_str = strdup(pl->exact);
             }
-            
-            skippayload:;
+
+        skippayload:;
 
             // Check if we want to parse the actual string.
             if (pl->is_string)
@@ -437,7 +493,7 @@ void *thread_hdl(void *temp)
 #ifdef VERY_RANDOM
         getrandom(&seed, sizeof(seed), 0);
 #else
-        seed = ts.tv_nsec; 
+        seed = ts.tv_nsec;
 #endif
         // Check if we need to generate random IP TTL.
         if (ti->seq.ip.min_ttl != ti->seq.ip.max_ttl)
@@ -461,7 +517,7 @@ void *thread_hdl(void *temp)
 
                 // Ensure this range is valid.
                 if (ti->seq.ip.ranges[ran] != NULL)
-                {    
+                {
                     char *randip = rand_ip(ti->seq.ip.ranges[ran], seed);
 
                     if (randip != NULL)
@@ -475,7 +531,7 @@ void *thread_hdl(void *temp)
                 }
                 else
                 {
-                    fail:
+                fail:
                     fprintf(stderr, "[%d] ERROR - Source range count is above 0, but string is NULL. Please report this! Using localhost...\n", seq_num);
 
                     strcpy(s_ip, "127.0.0.1");
@@ -563,34 +619,34 @@ void *thread_hdl(void *temp)
             // Perform checksum and length calculations for layer-4 headers.
             switch (iph->protocol)
             {
-                case IPPROTO_UDP:
-                    udph->len = htons(sizeof(struct udphdr) + data_len[i]);
-                    
-                    if (ti->seq.l4_csum)
-                    {
-                        udph->check = 0;
-                        udph->check = csum_tcpudp_magic(iph->saddr, iph->daddr, l4_len + data_len[i], IPPROTO_UDP, csum_partial(udph, l4_len + data_len[i], 0));
-                    }
+            case IPPROTO_UDP:
+                udph->len = htons(sizeof(struct udphdr) + data_len[i]);
 
-                    break;
+                if (ti->seq.l4_csum)
+                {
+                    udph->check = 0;
+                    udph->check = csum_tcpudp_magic(iph->saddr, iph->daddr, l4_len + data_len[i], IPPROTO_UDP, csum_partial(udph, l4_len + data_len[i], 0));
+                }
 
-                case IPPROTO_TCP:
-                    if (ti->seq.l4_csum)
-                    {
-                        tcph->check = 0;
-                        tcph->check = csum_tcpudp_magic(iph->saddr, iph->daddr, l4_len + data_len[i], IPPROTO_TCP, csum_partial(tcph, l4_len + data_len[i], 0));
-                    }
+                break;
 
-                    break;
+            case IPPROTO_TCP:
+                if (ti->seq.l4_csum)
+                {
+                    tcph->check = 0;
+                    tcph->check = csum_tcpudp_magic(iph->saddr, iph->daddr, l4_len + data_len[i], IPPROTO_TCP, csum_partial(tcph, l4_len + data_len[i], 0));
+                }
 
-                case IPPROTO_ICMP:
-                    if (ti->seq.l4_csum)
-                    {
-                        icmph->checksum = 0;
-                        icmph->checksum = icmp_csum((u16 *)icmph, l4_len + data_len[i]);
-                    }
+                break;
 
-                    break;
+            case IPPROTO_ICMP:
+                if (ti->seq.l4_csum)
+                {
+                    icmph->checksum = 0;
+                    icmph->checksum = icmp_csum((u16 *)icmph, l4_len + data_len[i]);
+                }
+
+                break;
             }
 
             // Calculate IP header total length and checksum if necessary.
@@ -692,7 +748,7 @@ void *thread_hdl(void *temp)
 
     // Attempt to close the socket.
     close(sock_fd);
-    
+
     // Free payloads.
     free(payloads);
 
@@ -700,15 +756,15 @@ void *thread_hdl(void *temp)
 }
 
 /**
- * Starts a sequence in send mode. 
- * 
+ * Starts a sequence in send mode.
+ *
  * @param interface The networking interface to send packets out of.
  * @param seq A singular sequence structure containing relevant information for the packet.
  * @param seq_cnt2 The sequence counter from the main program.
  * @param cmd The command line structure.
- * 
+ *
  * @return Void
-**/
+ **/
 void seq_send(const char *interface, sequence_t seq, u16 seq_cnt2, cmd_line_t cmd)
 {
     // First, make sure interface isn't NULL.
@@ -718,7 +774,7 @@ void seq_send(const char *interface, sequence_t seq, u16 seq_cnt2, cmd_line_t cm
 
         return;
     }
-    
+
     // Let's check if the destination IP is set.
     if (seq.ip.dst_ip == NULL)
     {
@@ -762,7 +818,7 @@ void seq_send(const char *interface, sequence_t seq, u16 seq_cnt2, cmd_line_t cm
     }
 
     // Check if we need to join/block this threads.
-     if (seq.block || (seq_cnt) >= (seq_cnt2 - 1))
+    if (seq.block || (seq_cnt) >= (seq_cnt2 - 1))
     {
         for (int i = 0; i < t_cnt; i++)
         {
@@ -773,9 +829,9 @@ void seq_send(const char *interface, sequence_t seq, u16 seq_cnt2, cmd_line_t cm
 
 /**
  * Shuts down threads, prints stats for each sequence (if tracking is enabled), and exits program.
- * 
+ *
  * @return Void
-*/
+ */
 void shutdown_prog(config_t *cfg)
 {
     for (int i = 0; i < thread_cnt; i++)
