@@ -46,8 +46,22 @@ void *thread_hdl(void *temp)
     u8 protocol = IPPROTO_UDP;
     u8 src_mac[ETH_ALEN] = {0};
     u8 dst_mac[ETH_ALEN] = {0};
-    u16 data_len[MAX_PAYLOADS] = {0};
-    u16 pckt_len[MAX_PAYLOADS] = {0};
+
+    // Allocate large arrays on heap to avoid stack limitation issues.
+    u16 *data_len = calloc(MAX_PAYLOADS, sizeof(u16));
+    u16 *pckt_len = calloc(MAX_PAYLOADS, sizeof(u16));
+    char *buffer = malloc(MAX_PCKT_LEN);
+
+    if (!data_len || !pckt_len || !buffer)
+    {
+        fprintf(stderr, "[%d] Failed to allocate buffers\n", seq_num);
+
+        free(data_len);
+        free(pckt_len);
+        free(buffer);
+
+        pthread_exit(NULL);
+    }
 
     // Payloads.
     u8 **payloads;
@@ -142,9 +156,6 @@ void *thread_hdl(void *temp)
     // Create rand_r() seed.
     unsigned int seed;
 
-    // Initialize buffer for the packet itself.
-    char buffer[MAX_PCKT_LEN];
-
     // Common packet characteristics.
     u8 l4_len;
 
@@ -186,72 +197,8 @@ void *thread_hdl(void *temp)
         iph->id = htons(ti->seq.ip.max_id);
     }
 
-    // Check for static source IP.
-    if (ti->seq.ip.src_ip != NULL)
-    {
-        // Resolve source hostname/IP address.
-        struct addrinfo hints = {0};
-
-        hints.ai_family = AF_INET;
-        hints.ai_socktype = SOCK_RAW;
-        hints.ai_protocol = 0;
-
-        struct addrinfo *res, *rp;
-
-        if (getaddrinfo(ti->seq.ip.src_ip, NULL, &hints, &res) != 0)
-        {
-            fprintf(stderr, "[%d] ERROR - Could not resolve source IP address (%s) :: %s.\n", seq_num, ti->seq.ip.src_ip, strerror(errno));
-
-            pthread_exit(NULL);
-        }
-
-        u32 ip = 0;
-
-        for (rp = res; rp != NULL; rp = rp->ai_next)
-        {
-            if (rp->ai_family == AF_INET)
-            {
-                ip = ((struct sockaddr_in *)rp->ai_addr)->sin_addr.s_addr;
-
-                break;
-            }
-        }
-
-        freeaddrinfo(res);
-
-        iph->saddr = ip;
-    }
-
-    // Resolve destination hostname/IP address.
-    struct addrinfo hints = {0};
-
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_RAW;
-    hints.ai_protocol = 0;
-
-    struct addrinfo *res, *rp;
-
-    if (getaddrinfo(ti->seq.ip.dst_ip, NULL, &hints, &res) != 0)
-    {
-        fprintf(stderr, "[%d] ERROR - Could not resolve destination IP address (%s) :: %s.\n", seq_num, ti->seq.ip.dst_ip, strerror(errno));
-
-        pthread_exit(NULL);
-    }
-
-    u32 ip = 0;
-
-    for (rp = res; rp != NULL; rp = rp->ai_next)
-    {
-        if (rp->ai_family == AF_INET)
-        {
-            ip = ((struct sockaddr_in *)rp->ai_addr)->sin_addr.s_addr;
-
-            break;
-        }
-    }
-
-    freeaddrinfo(res);
-    iph->daddr = ip;
+    iph->saddr = ti->src_ip;
+    iph->daddr = ti->dst_ip;
 
     // Handle layer-4 header (UDP, TCP, or ICMP).
     switch (protocol)
@@ -438,6 +385,14 @@ void *thread_hdl(void *temp)
     time_t to_end = time(NULL) + ti->seq.time;
 
     last_updated[ti->seq_cnt] = time(NULL);
+
+    void *pkts = malloc(ti->batch_size * MAX_PCKT_LEN);
+    memset(pkts, 0, ti->batch_size * MAX_PCKT_LEN);
+
+    u16 *pkts_len = malloc(sizeof(u16) * ti->batch_size);
+    memset(pkts_len, 0, sizeof(u16) * ti->batch_size);
+
+    int pkts_cnt = 0;
 
     // Loop.
     while (1)
@@ -657,16 +612,29 @@ void *thread_hdl(void *temp)
                 update_iph_checksum(iph);
             }
 
+            // Add to batch if needed.
+            if (pkts_cnt < ti->batch_size)
+            {
+                memcpy(pkts + (pkts_cnt * MAX_PCKT_LEN), buffer, pckt_len[i]);
+                pkts_len[pkts_cnt] = pckt_len[i];
+                pkts_cnt++;
+            }
+
             // Send packet out.
             int ret;
 
-            if ((ret = send_packet(xsk, ti->id, buffer, pckt_len[i], ti->cmd.verbose)) != 0)
+            if (pkts_cnt >= ti->batch_size)
             {
-                fprintf(stderr, "[%d][%d] ERROR - Could not send packet on AF_XDP socket (%d) :: %s.\n", seq_num, i, ti->id, strerror(errno));
+                if ((ret = send_packet_batch(xsk, pkts, pkts_len, pkts_cnt)) < 0)
+                {
+                    fprintf(stderr, "[%d] ERROR - Failed to send packet batch on AF_XDP socket :: %s.\n", seq_num, strerror(errno));
+                }
+
+                pkts_cnt = 0;
             }
 
             // Check if we want to send verbose output or not.
-            if (ti->cmd.verbose && ret == 0)
+            if (ti->cmd.verbose)
             {
                 // Retrieve source and destination ports for UDP/TCP protocols.
                 u16 srcport = 0;
@@ -740,8 +708,20 @@ void *thread_hdl(void *temp)
         }
     }
 
+    // Free packets and packet lengths buffers.
+    free(pkts);
+    free(pkts_len);
+
+    // Free large arrays.
+    free(data_len);
+    free(pckt_len);
+    free(buffer);
+
     // Retrieve end time for this sequence.
     end_time[ti->seq_cnt] = time(NULL);
+
+    // Flush remaining send queue.
+    flush_send_queue(xsk);
 
     // Cleanup AF_XDP socket.
     cleanup_socket(xsk);
@@ -762,10 +742,11 @@ void *thread_hdl(void *temp)
  * @param seq A singular sequence structure containing relevant information for the packet.
  * @param seq_cnt2 The sequence counter from the main program.
  * @param cmd The command line structure.
+ * @param batch_size The batch size for sending packets.
  *
  * @return Void
  **/
-void seq_send(const char *interface, sequence_t seq, u16 seq_cnt2, cmd_line_t cmd)
+void seq_send(const char *interface, sequence_t seq, u16 seq_cnt2, cmd_line_t cmd, int batch_size)
 {
     // First, make sure interface isn't NULL.
     if (interface == NULL)
@@ -783,12 +764,96 @@ void seq_send(const char *interface, sequence_t seq, u16 seq_cnt2, cmd_line_t cm
         return;
     }
 
+    // Check for static source IP.
+    u32 src_ip = 0;
+
+    if (seq.ip.src_ip != NULL)
+    {
+        // Resolve source hostname/IP address.
+        struct addrinfo hints = {0};
+
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = SOCK_RAW;
+        hints.ai_protocol = 0;
+
+        struct addrinfo *res, *rp;
+
+        if (getaddrinfo(seq.ip.src_ip, NULL, &hints, &res) != 0)
+        {
+            fprintf(stderr, "ERROR - Could not resolve source IP address (%s) :: %s.\n", seq.ip.src_ip, strerror(errno));
+
+            return;
+        }
+
+        u32 ip = 0;
+
+        for (rp = res; rp != NULL; rp = rp->ai_next)
+        {
+            if (rp->ai_family == AF_INET)
+            {
+                ip = ((struct sockaddr_in *)rp->ai_addr)->sin_addr.s_addr;
+
+                break;
+            }
+        }
+
+        freeaddrinfo(res);
+
+        src_ip = ip;
+    }
+
+    // Resolve destination hostname/IP address.
+    u32 dst_ip = 0;
+
+    struct addrinfo hints = {0};
+
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_RAW;
+    hints.ai_protocol = 0;
+
+    struct addrinfo *res, *rp;
+
+    if (getaddrinfo(seq.ip.dst_ip, NULL, &hints, &res) != 0)
+    {
+        fprintf(stderr, "ERROR - Could not resolve destination IP address (%s) :: %s.\n", seq.ip.dst_ip, strerror(errno));
+
+        return;
+    }
+
+    for (rp = res; rp != NULL; rp = rp->ai_next)
+    {
+        if (rp->ai_family == AF_INET)
+        {
+            dst_ip = ((struct sockaddr_in *)rp->ai_addr)->sin_addr.s_addr;
+
+            break;
+        }
+    }
+
+    freeaddrinfo(res);
+
+    if (dst_ip == 0)
+    {
+        fprintf(stderr, "ERROR - Could not resolve destination IP address (%s). No valid AF_INET address found.\n", seq.ip.dst_ip);
+
+        return;
+    }
+
+    // Increase thread stack size for high-throughput sequences.
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    // pthread_attr_setstacksize(&attr, 16 * 1024 * 1024);
+
     // Create new thread_info structure to pass to threads.
     thread_info_t ti = {0};
+    ti.batch_size = batch_size;
 
     // Assign correct values to thread info.
     strcpy((char *)&ti.device, interface);
     memcpy(&ti.seq, &seq, sizeof(sequence_t));
+
+    ti.src_ip = src_ip;
+    ti.dst_ip = dst_ip;
 
     // Copy command line.
     ti.cmd = cmd;
@@ -812,10 +877,21 @@ void seq_send(const char *interface, sequence_t seq, u16 seq_cnt2, cmd_line_t cm
         thread_info_t *ti_dup = malloc(sizeof(thread_info_t));
         memcpy(ti_dup, &ti, sizeof(thread_info_t));
 
-        pthread_create(&threads[thread_cnt], NULL, thread_hdl, (void *)ti_dup);
+        int ret = pthread_create(&threads[thread_cnt], &attr, thread_hdl, (void *)ti_dup);
+
+        if (ret != 0)
+        {
+            fprintf(stderr, "ERROR: pthread_create failed for thread %d: %s (errno: %d)\n",
+                    i, strerror(ret), ret);
+
+            free(ti_dup);
+            continue;
+        }
 
         thread_cnt++;
     }
+
+    pthread_attr_destroy(&attr);
 
     // Check if we need to join/block this threads.
     if (seq.block || (seq_cnt) >= (seq_cnt2 - 1))

@@ -25,6 +25,9 @@
 #define INVALID_UMEM_FRAME UINT64_MAX
 // #define DEBUG
 
+#define MAX_BATCH_SIZE 4096
+#define MAX_PKT_LEN 0xFFFF
+
 typedef struct xsk_umem_info
 {
     struct xsk_ring_prod fq;
@@ -57,6 +60,8 @@ typedef struct xsk_socket_info
 } xsk_socket_info_t;
 
 int send_packet(struct xsk_socket_info *xsk, int thread_id, void *pckt, u16 length, u8 verbose);
+int send_packet_batch(struct xsk_socket_info *xsk, void *pkts, u16 *pkts_len, u16 amt);
+void flush_send_queue(struct xsk_socket_info *xsk);
 u64 get_umem_addr(struct xsk_socket_info *xsk, int idx);
 void *get_umem_loc(struct xsk_socket_info *xsk, u64 addr);
 void setup_af_xdp_variables(struct cmd_line_af_xdp *cmd_af_xdp, int verbose);

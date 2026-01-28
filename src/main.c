@@ -1,5 +1,7 @@
 #include "main.h"
 
+#include <sys/resource.h>
+
 config_t *cfg = NULL;
 
 /**
@@ -101,6 +103,16 @@ int main(int argc, char *argv[])
         return EXIT_SUCCESS;
     }
 
+    // Raise RLImit.
+    struct rlimit rl;
+    rl.rlim_cur = RLIM_INFINITY;
+    rl.rlim_max = RLIM_INFINITY;
+
+    if (setrlimit(RLIMIT_STACK, &rl) != 0)
+    {
+        fprintf(stderr, "Failed to set stack limit to unlimited\n");
+    }
+
     // Setup signals to exit the program.
     signal(SIGINT, sign_hdl);
     signal(SIGTERM, sign_hdl);
@@ -108,7 +120,7 @@ int main(int argc, char *argv[])
     // Loop through each sequence found.
     for (int i = 0; i < seq_cnt; i++)
     {
-        seq_send(cfg->interface, cfg->seq[i], seq_cnt, cmd);
+        seq_send(cfg->interface, cfg->seq[i], seq_cnt, cmd, cmd_af_xdp.batch_size);
 
         sleep(1);
     }

@@ -169,7 +169,7 @@ static xsk_socket_info_t *xsk_configure_socket(xsk_umem_info_t *umem, int queue_
     xsk_info->umem = umem;
 
     // Set the TX size (we don't need anything RX-related).
-    xsk_cfg.tx_size = batch_size;
+    xsk_cfg.tx_size = XSK_RING_PROD__DEFAULT_NUM_DESCS;
 
     // Make sure we don't load an XDP program via LibBPF.
     xsk_cfg.libbpf_flags = XSK_LIBBPF_FLAGS__INHIBIT_PROG_LOAD;
@@ -227,7 +227,63 @@ error_exit:
 }
 
 /**
- * Sends a packet buffer out the AF_XDP socket's TX path.
+ * Internal function to send a batch of packets.
+ *
+ * @param xsk A pointer to the XSK socket info.
+ * @param packets Array of packet buffers.
+ * @param lengths Array of packet lengths.
+ * @param amt Number of packets to send.
+ *
+ * @return Returns 0 on success and -1 on failure.
+ **/
+static inline int send_packet_batch_internal(xsk_socket_info_t *xsk, void *buffer, u16 *lengths, u16 amt)
+{
+    u32 tx_idx = 0;
+    int retries = 0;
+
+    while (xsk_ring_prod__reserve(&xsk->tx, amt, &tx_idx) < amt)
+    {
+        complete_tx(xsk);
+
+        if (++retries > 100)
+        {
+            usleep(1);
+            retries = 0;
+        }
+    }
+
+    u8 *buf_ptr = (u8 *)buffer;
+
+    for (int i = 0; i < amt; i++)
+    {
+        u64 frame = xsk_alloc_umem_frame(xsk);
+
+        if (frame == INVALID_UMEM_FRAME)
+        {
+            fprintf(stderr, "Failed to allocate UMEM frame\n");
+            return -1;
+        }
+
+        memcpy(get_umem_loc(xsk, frame), buf_ptr + (i * MAX_PKT_LEN), lengths[i]);
+
+        struct xdp_desc *tx_desc = xsk_ring_prod__tx_desc(&xsk->tx, tx_idx + i);
+        tx_desc->addr = frame;
+        tx_desc->len = lengths[i];
+    }
+
+    xsk_ring_prod__submit(&xsk->tx, amt);
+    xsk->outstanding_tx += amt;
+
+    if (xsk->outstanding_tx >= batch_size / 2)
+    {
+        complete_tx(xsk);
+    }
+
+    return 0;
+}
+
+/**
+ * Sends a single packet buffer out the AF_XDP socket's TX path.
  *
  * @param xsk A pointer to the XSK socket info.
  * @param thread_id The thread ID to use to lookup the AF_XDP socket.
@@ -239,67 +295,69 @@ error_exit:
  **/
 int send_packet(xsk_socket_info_t *xsk, int thread_id, void *pckt, u16 length, u8 verbose)
 {
-    // This represents the TX index.
-    u32 tx_idx = 0;
-
-    // Retrieve the TX index from the TX ring to fill.
-    int retries = 0;
-    while (xsk_ring_prod__reserve(&xsk->tx, batch_size, &tx_idx) < batch_size)
+    static __thread struct
     {
-        complete_tx(xsk);
+        void *packets[MAX_BATCH_SIZE];
+        u16 lengths[MAX_BATCH_SIZE];
+        u8 packet_data[MAX_BATCH_SIZE][MAX_PKT_LEN];
+        int count;
+    } batch = {0};
 
-        // Prevent constant spinning.
-        if (++retries > 100)
+    // If packet is null and 0, try flushing.
+    if (pckt == NULL && length == 0)
+    {
+        if (batch.count > 0)
         {
-            usleep(1);
-
-            retries = 0;
+            int ret = send_packet_batch_internal(xsk, batch.packets, batch.lengths, batch.count);
+            batch.count = 0;
+            return ret;
         }
+        return 0;
     }
 
-#ifdef DEBUG
-    fprintf(stdout, "Sending packet in a batch size of %d...\n", batch_size);
-#endif
+    // Copy packet data to local buffer (since caller's buffer may be reused)
+    memcpy(batch.packet_data[batch.count], pckt, length);
+    batch.packets[batch.count] = batch.packet_data[batch.count];
+    batch.lengths[batch.count] = length;
+    batch.count++;
 
-    unsigned int idx = 0;
-
-    // Loop through to batch size.
-    for (int i = 0; i < batch_size; i++)
+    // Send batch when full
+    if (batch.count >= batch_size)
     {
-        // Retrieve index we want to insert at in UMEM and make sure it isn't equal/above to max number of frames.
-        idx = (xsk->outstanding_tx + i) % NUM_FRAMES;
+        int ret = send_packet_batch_internal(xsk, batch.packets, batch.lengths, batch.count);
+        batch.count = 0;
 
-        // We must retrieve the next available address in the UMEM.
-        u64 addrat = xsk_alloc_umem_frame(xsk);
-
-        // We must copy our packet data to the UMEM area at the specific index (idx * frame size). We did this earlier.
-        memcpy(get_umem_loc(xsk, addrat), pckt, length);
-
-        // Retrieve TX descriptor at index.
-        struct xdp_desc *tx_desc = xsk_ring_prod__tx_desc(&xsk->tx, tx_idx + i);
-
-        // Point the TX ring's frame address to what we have in the UMEM.
-        tx_desc->addr = addrat;
-
-        // Tell the TX ring the packet length.
-        tx_desc->len = length;
+        return ret;
     }
 
-    // Submit the TX batch to the producer ring.
-    xsk_ring_prod__submit(&xsk->tx, batch_size);
-
-    // Increase outstanding.
-    xsk->outstanding_tx += batch_size;
-
-    // Complete TX again.
-    complete_tx(xsk);
-
-#ifdef DEBUG
-    fprintf(stdout, "Completed batch with %u outstanding packets...\n", xsk->outstanding_tx);
-#endif
-
-    // Return successful.
     return 0;
+}
+
+/**
+ * Sends multiple packets at once via batching.
+ *
+ * @param xsk A pointer to the XSK socket info.
+ * @param pkts Array of packet buffers.
+ * @param pkts_len Array of packet lengths.
+ * @param amt Number of packets to send.
+ *
+ * @return Returns 0 on success and -1 on failure.
+ **/
+int send_packet_batch(xsk_socket_info_t *xsk, void *pkts, u16 *pkts_len, u16 amt)
+{
+    return send_packet_batch_internal(xsk, pkts, pkts_len, amt);
+}
+
+/**
+ * Flushes any remaining packets in the send queue.
+ *
+ * @param xsk A pointer to the XSK socket info.
+ *
+ * @return Void
+ **/
+void flush_send_queue(xsk_socket_info_t *xsk)
+{
+    send_packet(xsk, 0, NULL, 0, 0);
 }
 
 /**

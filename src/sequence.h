@@ -47,7 +47,11 @@ typedef struct thread_info
     struct cmd_line cmd;
     int id;
     struct xsk_socket_info *xsk_info;
+    int batch_size;
+
+    u32 src_ip;
+    u32 dst_ip;
 } thread_info_t;
 
-void seq_send(const char *interface, struct sequence seq, u16 seqc, struct cmd_line cmd);
+void seq_send(const char *interface, struct sequence seq, u16 seqc, struct cmd_line cmd, int batch_size);
 void shutdown_prog(struct config *cfg);
