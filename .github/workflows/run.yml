@@ -8,7 +8,7 @@ on:
 
 jobs:
   reuse_build:
-    uses: Packet-Batch/PB-AF-XDP/.github/workflows/build.yml@master
+    uses: Packet-Batch/Program/.github/workflows/build.yml@master
   run:
     needs: reuse_build
     runs-on: ubuntu-latest
