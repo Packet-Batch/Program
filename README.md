@@ -60,11 +60,11 @@ sudo apt install -y libelf-dev
 # Change the current working directory to PB-AF-XDP/.
 cd PB-AF-XDP/
 
-# Execute ./build.sh file to build and install dependencies and main project which requires sudo privileges.
-# WARNING - If you don't have sudo available on your system, please look at the ./build.sh file and execute make commands as root in order.
+# Execute ./install.sh file to build and install dependencies and main project which requires sudo privileges.
+# WARNING - If you don't have sudo available on your system, please look at the ./install.sh file and execute make commands as root in order.
 # NOTE - You may also look at the .github/workflows/build.yml.
-# NOTE - The first argument represents the amount of threads to use with make. 0 uses the amount of available threads on the system and supplying no argument uses 1 thread.
-./build.sh 0
+# NOTE - Pass `-h` or `--help` for more options!
+./install.sh # --threads 0
 
 # You may use the following to clean the build. You must run this as root or sudo because of the Common's cleanup.
 sudo make clean
@@ -75,7 +75,7 @@ sudo make clean
 ### Installation Video!
 [![Click here to watch!](https://i.imgur.com/pD3H1vw.jpeg)](https://www.youtube.com/watch?v=2vWJUgsbbIM)
 
-**Warning!** - The installation video is a bit outdated, but should show most of the installation process. Since the video was made, we've switched to `json-c` from `libyaml` and use a build script to build the project and its dependencies ([`./build.sh`](./build.sh)).
+**Warning!** - The installation video is a bit outdated, but should show most of the installation process. Since the video was made, we've switched to `json-c` from `libyaml` and use a build script to build the project and its dependencies ([`./install.sh`](./install.sh)).
 
 After installing, the executable is copied to the `/usr/bin/` directory which should be included in your `$PATH`. Therefore, you may use the application globally (in any directory).
 
