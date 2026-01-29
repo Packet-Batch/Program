@@ -649,6 +649,7 @@ void *thread_hdl(void *temp)
             if (pkts_cnt < ti->batch_size)
             {
                 memcpy(pkts + (pkts_cnt * MAX_PCKT_LEN), buffer, pckt_len[i]);
+
                 pkts_len[pkts_cnt] = pckt_len[i];
                 pkts_cnt++;
 
@@ -755,9 +756,6 @@ void *thread_hdl(void *temp)
 
     // Retrieve end time for this sequence.
     end_time[ti->seq_cnt] = time(NULL);
-
-    // Flush remaining send queue.
-    flush_send_queue(xsk);
 
     // Cleanup AF_XDP socket.
     cleanup_socket(xsk);

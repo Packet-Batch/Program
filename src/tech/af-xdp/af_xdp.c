@@ -15,6 +15,8 @@
 
 #include <tech/af-xdp/af_xdp.h>
 
+#include <constants.h>
+
 /* Global variables */
 // The XDP flags to load the AF_XDP/XSK sockets with.
 u32 xdp_flags = XDP_FLAGS_DRV_MODE;
@@ -30,6 +32,10 @@ static unsigned int global_frame_idx = 0;
 // Pointers to the umem and XSK sockets for each thread.
 xsk_umem_info_t *shared_umem = NULL;
 
+#ifdef AF_XDP_NO_REFILL_FRAMES
+int cur_frame_idx = 0;
+#endif
+
 /**
  * Allocates a UMEM frame by retrieving it from the free list.
  *
@@ -40,6 +46,18 @@ xsk_umem_info_t *shared_umem = NULL;
 static inline u64 xsk_alloc_umem_frame(struct xsk_socket_info *xsk)
 {
     u64 frame;
+
+#ifdef AF_XDP_NO_REFILL_FRAMES
+    if (xsk->umem_frame_free < 1)
+    {
+        frame = xsk->umem_frame_addr[cur_frame_idx++];
+
+        if (cur_frame_idx >= NUM_FRAMES)
+            cur_frame_idx = 0;
+
+        return frame;
+    }
+#endif
 
     if (xsk->umem_frame_free == 0)
         return INVALID_UMEM_FRAME;
@@ -215,21 +233,21 @@ static xsk_socket_info_t *xsk_configure_socket(xsk_umem_info_t *umem, int queue_
     xsk_info->umem_frame_free = NUM_FRAMES;
 
     // Stuff the receive path.
-    ret = xsk_ring_prod__reserve(&xsk_info->umem->fq, batch_size, &idx);
+    ret = xsk_ring_prod__reserve(&xsk_info->umem->fq, XSK_RING_PROD__DEFAULT_NUM_DESCS, &idx);
 
-    if (ret != batch_size)
+    if (ret != XSK_RING_PROD__DEFAULT_NUM_DESCS)
     {
         fprintf(stderr, "Failed to reserve fill ring for UMEM.\n");
 
         goto error_exit;
     }
 
-    for (i = 0; i < batch_size; i++)
+    for (i = 0; i < XSK_RING_PROD__DEFAULT_NUM_DESCS; i++)
     {
         *xsk_ring_prod__fill_addr(&xsk_info->umem->fq, idx++) = xsk_alloc_umem_frame(xsk_info);
     }
 
-    xsk_ring_prod__submit(&xsk_info->umem->fq, batch_size);
+    xsk_ring_prod__submit(&xsk_info->umem->fq, XSK_RING_PROD__DEFAULT_NUM_DESCS);
 
     // Return the AF_XDP/XSK socket information itself as a pointer.
     return xsk_info;
@@ -254,7 +272,6 @@ error_exit:
 static inline int send_packet_batch_internal(xsk_socket_info_t *xsk, void *buffer, u16 *lengths, u16 amt)
 {
     u32 tx_idx = 0;
-    int retries = 0;
 
     while (xsk_ring_prod__reserve(&xsk->tx, amt, &tx_idx) < amt)
     {
@@ -270,10 +287,17 @@ static inline int send_packet_batch_internal(xsk_socket_info_t *xsk, void *buffe
         if (frame == INVALID_UMEM_FRAME)
         {
             fprintf(stderr, "Failed to allocate UMEM frame\n");
+
             return -1;
         }
-
-        memcpy(get_umem_loc(xsk, frame), buf_ptr + (i * MAX_PKT_LEN), lengths[i]);
+#ifdef AF_XDP_NO_REFILL_FRAMES
+        if (xsk->umem_frame_free > 0)
+        {
+#endif
+            memcpy(get_umem_loc(xsk, frame), buf_ptr + (i * MAX_PKT_LEN), lengths[i]);
+#ifdef AF_XDP_NO_REFILL_FRAMES
+        }
+#endif
 
         struct xdp_desc *tx_desc = xsk_ring_prod__tx_desc(&xsk->tx, tx_idx + i);
         tx_desc->addr = frame;
