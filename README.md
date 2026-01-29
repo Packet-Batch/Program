@@ -9,11 +9,6 @@
 * UDP, TCP, and ICMP layer 4 protocols supported.
 * Optional layer 3 and 4 checksum calculation in the event you want the NIC's hardware to calculate checksums for generated outgoing packets.
 
-#### Note Regarding Seeding/Randomness
-When generating randomness in a packet (e.g. random source IPs, ports, payload(s), etc.), by default, we try to use nanoseconds since boot using `timespec` as the seed when passing to [`rand_r()`](https://linux.die.net/man/3/rand_r) for example. However, I've found this isn't completely random, especially since the seed variable (`unsigned int`) and `timespec` nanoseconds variable (`long`) do not match in size.
-
-Therefore, I added the constant [`VERY_RANDOM`](https://github.com/Packet-Batch/PB-AF-XDP/blob/master/src/sequence.h#L36) that can be uncommented. When this constant is defined, the [`getrandom()`](https://man7.org/linux/man-pages/man2/getrandom.2.html) function is used to fill the seed with random bytes. This results in more randomness, but the `getrandom()` function adds a bit more overhead than retrieving the nanoseconds since system boot from my testing.
-
 ### Disclaimer
 I do **NOT** support using these tools maliciously or as a part of a targeted attack. I've made these tools to perform penetration tests against my own firewalls along with occasionally debugging network issues such as packets not arriving to their destination correctly.
 
@@ -37,9 +32,11 @@ The above is why we aren't utilizing AF_XDP sockets in the standard version.
 From the benchmarks I've concluded on my home server running Proxmox VMs, AF_XDP sockets send around 5 - 10% more packets per second than the standard version and the amount of packets per second it is sending is a lot more consistent (regardless of the batch size option explained below). I won't have solid benchmarks until I perform these tests on full dedicated hardware which should happen in early 2022.
 
 ## Building And Installing
-Building and installing this project is fairly easy and just like the standard version. It includes building the Packet Batch Common repository which requires [JSON-C](https://github.com/json-c/json-c). As long as you use the `--recursive` flag with `git`, it should retrieve all of the required submodules automatically located in the `modules/` directory. Otherwise, you will need to go into the Common repository and execute the `git submodule update --init` command. We use `make` to build and install the application.
+Building and installing this project is fairly easy and just like the standard version. It includes building [JSON-C](https://github.com/json-c/json-c) and other libraries depending on what tech you use (AF_XDP **only supported** right now). As long as you use the `--recursive` flag with `git`, it should retrieve all of the required submodules automatically located in the `modules/` directory. Otherwise, you will need to go into the Common repository and execute the `git submodule update --init` command.
 
-The following commands should work for Ubuntu/Debian-based systems. However, you should be able to install this on other Linux distros with a few adjustments as well.
+I've included a simple Bash script to build and install the tool.
+
+The following commands should work for Debian/Ubuntu-based systems. However, you should be able to install this on other Linux distros with a few adjustments as well.
 
 ```bash
 # Update apt.
@@ -49,7 +46,7 @@ sudo apt update
 sudo apt install -y git
 
 # Clone this repository along with its submodules.
-git clone --recursive https://github.com/Packet-Batch/PB-AF-XDP.git
+git clone --recursive https://github.com/Packet-Batch/program.git
 
 # Install build essentials/tools and needed libaries for JSON-C.
 sudo apt install -y build-essential clang cmake pkgconf
@@ -58,7 +55,7 @@ sudo apt install -y build-essential clang cmake pkgconf
 sudo apt install -y libelf-dev
 
 # Change the current working directory to PB-AF-XDP/.
-cd PB-AF-XDP/
+cd program/
 
 # Execute ./install.sh file to build and install dependencies and main project which requires sudo privileges.
 # WARNING - If you don't have sudo available on your system, please look at the ./install.sh file and execute make commands as root in order.
@@ -66,8 +63,8 @@ cd PB-AF-XDP/
 # NOTE - Pass `-h` or `--help` for more options!
 ./install.sh # --threads 0
 
-# You may use the following to clean the build. You must run this as root or sudo because of the Common's cleanup.
-sudo make clean
+# You may use the following to clean the build.
+./install.sh --clean
 ```
 
 ![Install GIF](./images/install.gif)
@@ -577,5 +574,10 @@ If you are looking for full examples, please check out [this repository](https:/
 
 **NOTE** - The default config path is `/etc/pcktbatch/conf.json`. This may be changed via the `-c` and `--cfg` flags as explained under the Command Line Usage section below.
 
+## Notes
+### Seeding & Randomness
+When generating randomness in a packet (e.g. random source IPs, ports, payload(s), etc.), by default, we try to use nanoseconds since boot using `timespec` as the seed when passing to [`rand_r()`](https://linux.die.net/man/3/rand_r) for example. However, I've found this isn't completely random, especially since the seed variable (`unsigned int`) and `timespec` nanoseconds variable (`long`) do not match in size.
+
+Therefore, I added the constant [`VERY_RANDOM`](https://github.com/Packet-Batch/PB-AF-XDP/blob/master/src/sequence.h#L36) that can be uncommented. When this constant is defined, the [`getrandom()`](https://man7.org/linux/man-pages/man2/getrandom.2.html) function is used to fill the seed with random bytes. This results in more randomness, but the `getrandom()` function adds a bit more overhead than retrieving the nanoseconds since system boot from my testing.
 ## Credits
 * [Christian Deacon](https://github.com/gamemann)

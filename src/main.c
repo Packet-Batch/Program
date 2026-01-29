@@ -1,6 +1,25 @@
-#include "main.h"
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <getopt.h>
+#include <errno.h>
+#include <signal.h>
 #include <sys/resource.h>
+
+#include <constants.h>
+
+#include <common/utils.h>
+#include <common/cli.h>
+#include <common/config.h>
+
+#include <tech/sequence.h>
+
+#ifdef ENABLE_AF_XDP
+#include <tech/af-xdp/af_xdp.h>
+#endif
+
+extern int errno;
 
 config_t *cfg = NULL;
 
@@ -22,14 +41,14 @@ void sign_hdl(int sig)
  *
  * @return Int (exit code)
  */
-int main(int argc, char *argv[])
+int main(int argc, char **argv)
 {
     // Create command line structure.
     opterr = 0;
     cmd_line_t cmd = {0};
 
     // Parse command line and store values into cmd.
-    parse_cmd_line(argc, argv, &cmd);
+    parse_cli(argc, argv, &cmd);
 
     // Help menu.
     if (cmd.help)
@@ -39,24 +58,14 @@ int main(int argc, char *argv[])
         return EXIT_SUCCESS;
     }
 
-    // Create AF_XDP-specific command line variable and set defaults.
-    cmd_line_af_xdp_t cmd_af_xdp = {0};
-    cmd_af_xdp.batch_size = 64;
-
-    // Parse AF_XDP-specific command line.
-    optind = 0;
-    optopt = 0;
-
-    parse_cmd_line_af_xdp(&cmd_af_xdp, argc, argv);
-
     // Set global variables in AF_XDP program.
-    setup_af_xdp_variables(&cmd_af_xdp, cmd.verbose);
+    setup_af_xdp_variables(&cmd.tech_af_xdp, cmd.verbose);
 
     // Check if config is specified.
     if (cmd.config == NULL)
     {
         // Copy default values.
-        cmd.config = "/etc/pcktbatch/conf.json";
+        cmd.config = CONF_PATH_DEFAULT;
 
         // Let us know if we're using the default config when the verbose flag is specified.
         if (cmd.verbose)
@@ -90,7 +99,7 @@ int main(int argc, char *argv[])
 
     if (cmd.cli)
     {
-        parse_cli(&cmd, cfg);
+        parse_cli_seq_opts(&cmd, cfg);
 
         // Make sure we have at least one sequence.
         if (seq_cnt < 1)
@@ -105,8 +114,8 @@ int main(int argc, char *argv[])
         return EXIT_SUCCESS;
     }
 
+#ifdef CONF_UNLOCK_RLIMIT
     // Raise RLImit.
-    /*
     struct rlimit rl;
     rl.rlim_cur = RLIM_INFINITY;
     rl.rlim_max = RLIM_INFINITY;
@@ -115,7 +124,7 @@ int main(int argc, char *argv[])
     {
         fprintf(stderr, "Failed to set stack limit to unlimited\n");
     }
-    */
+#endif
 
     // Setup signals to exit the program.
     signal(SIGINT, sign_hdl);
@@ -124,7 +133,7 @@ int main(int argc, char *argv[])
     // Loop through each sequence found.
     for (int i = 0; i < seq_cnt; i++)
     {
-        seq_send(cfg->interface, cfg->seq[i], seq_cnt, cmd, cmd_af_xdp.batch_size);
+        seq_send(cfg->interface, cfg->seq[i], seq_cnt, cmd, cmd.tech_af_xdp.batch_size);
 
         sleep(1);
     }

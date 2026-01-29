@@ -1,6 +1,33 @@
-#include "sequence.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/sysinfo.h>
+#include <netinet/in.h>
+#include <net/if.h>
+#include <linux/if.h>
+#include <linux/if_ether.h>
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/udp.h>
+#include <linux/icmp.h>
+#include <linux/if_packet.h>
+#include <arpa/inet.h>
+#include <sys/ioctl.h>
+#include <inttypes.h>
+#include <time.h>
+#include <pthread.h>
+#include <string.h>
+#include <errno.h>
+#include <linux/if_link.h>
 
-#include <csum.h>
+#include <helpers/int_types.h>
+#include <helpers/csum.h>
+
+#include <common/utils.h>
+#include <common/config.h>
+#include <common/cli.h>
 
 #ifdef VERY_RANDOM
 #include <sys/random.h>
@@ -9,6 +36,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+
+#include <tech/sequence.h>
 
 pthread_t threads[MAX_THREADS];
 int threads_is_joined[MAX_THREADS] = {0};

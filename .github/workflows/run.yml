@@ -20,7 +20,7 @@ jobs:
     - name: Run apt update
       run: sudo apt update
     - name: Install LibELF
-      run: sudo apt install libelf-dev
+      run: sudo apt install -y libelf-dev
     - name: List files
       run: ls -la
     - name: Add execute permissions to executable file

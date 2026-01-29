@@ -1,9 +1,6 @@
-[submodule "modules/common"]
-	path = modules/common
-	url = https://github.com/Packet-Batch/PB-Common.git
-[submodule "modules/tests"]
-	path = modules/tests
-	url = https://github.com/Packet-Batch/PB-Tests.git
 [submodule "modules/libbpf"]
 	path = modules/libbpf
 	url = https://github.com/libbpf/libbpf.git
+[submodule "modules/json-c"]
+	path = modules/json-c
+	url = https://github.com/json-c/json-c

@@ -1,23 +1,8 @@
 #pragma once
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <errno.h>
-#include <locale.h>
-
-#include <net/if.h>
-
-#include <sys/socket.h>
-#include <linux/if_link.h>
-#include <bpf.h>
-
 #include <xsk.h>
 
-#include <simple_types.h>
-
-#include "cmd_line.h"
+#include <tech/af-xdp/cli.h>
 
 #define MAX_CPUS 256
 #define NUM_FRAMES 4096
@@ -64,7 +49,7 @@ int send_packet_batch(struct xsk_socket_info *xsk, void *pkts, u16 *pkts_len, u1
 void flush_send_queue(struct xsk_socket_info *xsk);
 u64 get_umem_addr(struct xsk_socket_info *xsk, int idx);
 void *get_umem_loc(struct xsk_socket_info *xsk, u64 addr);
-void setup_af_xdp_variables(struct cmd_line_af_xdp *cmd_af_xdp, int verbose);
+void setup_af_xdp_variables(struct cli_af_xdp *cmd_af_xdp, int verbose);
 struct xsk_umem_info *setup_umem(int index);
 struct xsk_socket_info *setup_socket(const char *dev, u16 thread_id, int verbose);
 void cleanup_socket(struct xsk_socket_info *xsk);

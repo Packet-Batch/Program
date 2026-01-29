@@ -12,23 +12,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
     - name: Run apt update
       run: sudo apt update
     - name: Install general dependencies
       run: sudo apt install -y autoconf pkgconf cmake clang build-essential
-    - name: Install LibELF for AF_XDP/LibBPF
+    - name: Install LibELF for LibBPF (AF_XDP)
       run: sudo apt install -y libelf-dev 
-    - name: Build Common JSON-C
-      run: make -C modules/common jsonc
-    - name: Install Common JSON-C
-      run: sudo make -C modules/common jsonc_install
-    - name: Build Common Main
-      run: make -C modules/common
-    - name: Install Common
-      run: sudo make -C modules/common install
+    - name: Build JSON-C
+      run: make jsonc
+    - name: Install JSON-C
+      run: sudo make jsonc_install
     - name: Build LibBPF
       run: make libbpf
     - name: Build main

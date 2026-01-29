@@ -72,30 +72,18 @@ if [ "$THREADS" -lt 1]; then
     THREADS=$(nproc)
 fi
 
-echo "Building Packet Batch (AF_XDP) using $THREADS threads..."
+echo "Building Packet Batch using $THREADS threads..."
 
 # First, we want to build our common objects which includes LibYAML. Read the PB-Common directory for more information.
-echo "Building Common Repository..."
 
 echo "Building JSON-C..."
-make -j $THREADS -C modules/common jsonc
+make -j $THREADS jsonc
 echo "Done..."
 
 if [ "$INSTALL" -gt 0 ]; then
     echo "Installing JSON-C..."
-    sudo make -j $THREADS -C modules/common jsonc_install
+    sudo make -j $THREADS jsonc_install
 fi
-
-echo "Building Common Main..."
-make -j $THREADS common
-echo "Done..."
-
-if [ "$INSTALL" -gt 0 ]; then
-    echo "Installing Common Main..."
-    sudo make -j $THREADS -C modules/common common_install
-fi
-
-echo "Building AF_XDP Version..."
 
 # Next, build LibBPF objects.
 echo "Building LibBPF..."

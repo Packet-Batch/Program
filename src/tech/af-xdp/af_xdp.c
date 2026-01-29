@@ -1,4 +1,19 @@
-#include "af_xdp.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <errno.h>
+#include <locale.h>
+
+#include <net/if.h>
+
+#include <sys/socket.h>
+#include <linux/if_link.h>
+#include <bpf.h>
+
+#include <helpers/int_types.h>
+
+#include <tech/af-xdp/af_xdp.h>
 
 /* Global variables */
 // The XDP flags to load the AF_XDP/XSK sockets with.
@@ -406,7 +421,7 @@ void *get_umem_loc(xsk_socket_info_t *xsk, u64 addr)
  *
  * @return Void
  **/
-void setup_af_xdp_variables(cmd_line_af_xdp_t *cmd_af_xdp, int verbose)
+void setup_af_xdp_variables(cli_af_xdp_t *cmd_af_xdp, int verbose)
 {
     // Check for zero-copy or copy modes.
     if (cmd_af_xdp->zero_copy)
