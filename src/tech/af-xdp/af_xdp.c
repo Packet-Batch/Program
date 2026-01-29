@@ -259,12 +259,6 @@ static inline int send_packet_batch_internal(xsk_socket_info_t *xsk, void *buffe
     while (xsk_ring_prod__reserve(&xsk->tx, amt, &tx_idx) < amt)
     {
         complete_tx(xsk);
-
-        if (++retries > 100)
-        {
-            usleep(1);
-            retries = 0;
-        }
     }
 
     u8 *buf_ptr = (u8 *)buffer;
