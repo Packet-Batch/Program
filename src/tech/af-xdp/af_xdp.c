@@ -562,14 +562,14 @@ xsk_socket_info_t *tech_afxdp__sock_setup(const char *dev, u16 thread_id, int ve
 void tech_afxdp__sock_cleanup(xsk_socket_info_t *xsk)
 {
     // If the AF_XDP/XSK socket isn't NULL, delete it.
-    if (xsk->xsk != NULL)
+    if (xsk != NULL && xsk->xsk != NULL)
     {
         xsk_socket__delete(xsk->xsk);
-    }
 
-    // If the UMEM isn't NULL, delete it.
-    if (xsk->umem != NULL)
-    {
-        xsk_umem__delete(xsk->umem->umem);
+        // If the UMEM isn't NULL, delete it.
+        if (xsk->umem != NULL)
+        {
+            xsk_umem__delete(xsk->umem->umem);
+        }
     }
 }

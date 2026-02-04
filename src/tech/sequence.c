@@ -102,6 +102,28 @@ static void *sequence__thread_core(void *temp)
     // Get human-friendly sequence ID (id + 1).
     int seq_num = ti->seq_cnt + 1;
 
+    // Initialize socket FD.
+    int sock_fd;
+
+    // Create AF_XDP socket and check.
+    xsk_socket_info_t *xsk = tech_afxdp__sock_setup(ti->device, ti->id, ti->cmd.verbose);
+
+    if (xsk == NULL)
+    {
+        fprintf(stderr, "[%d] Error setting up AF_XDP socket on thread.\n", seq_num);
+
+        goto thread_exit;
+    }
+
+    sock_fd = tech_afxdp__sock_fd(xsk);
+
+    if (sock_fd < 0)
+    {
+        fprintf(stderr, "[%d] Error setting up AF_XDP socket on thread.\n", seq_num);
+
+        goto thread_exit;
+    }
+
     // Let's parse some config values before creating the socket so we know what we're doing.
     u8 protocol = IPPROTO_UDP;
     u8 src_mac[ETH_ALEN] = {0};
@@ -116,11 +138,16 @@ static void *sequence__thread_core(void *temp)
     {
         fprintf(stderr, "[%d] Failed to allocate buffers\n", seq_num);
 
-        free(data_len);
-        free(pckt_len);
-        free(buffer);
+        if (data_len != NULL)
+            free(data_len);
 
-        pthread_exit(NULL);
+        if (pckt_len != NULL)
+            free(pckt_len);
+
+        if (buffer != NULL)
+            free(buffer);
+
+        goto thread_exit;
     }
 
     // Payloads.
@@ -137,7 +164,7 @@ static void *sequence__thread_core(void *temp)
     {
         fprintf(stderr, "[%d] Failed to intialize payloads array due to allocation error.\n", seq_num);
 
-        pthread_exit(NULL);
+        goto thread_exit;
     }
 
     // Let's first start off by checking if the source MAC address is set within the config.
@@ -160,29 +187,6 @@ static void *sequence__thread_core(void *temp)
     else if (ti->seq.ip.protocol != NULL && !strcmp(utils__lower_str(ti->seq.ip.protocol), "icmp"))
     {
         protocol = IPPROTO_ICMP;
-    }
-
-    // Initialize socket FD.
-    int sock_fd;
-
-    // Create AF_XDP socket and check.
-    xsk_socket_info_t *xsk = tech_afxdp__sock_setup(ti->device, ti->id, ti->cmd.verbose);
-
-    sock_fd = tech_afxdp__sock_fd(xsk);
-
-    if (sock_fd < 0)
-    {
-        fprintf(stderr, "[%d] Error setting up AF_XDP socket on thread.\n", seq_num);
-
-        // Attempt to cleanup socket.
-        tech_afxdp__sock_cleanup(xsk);
-
-        // Attempt to close the socket.
-        close(sock_fd);
-
-        pthread_exit(NULL);
-
-        return NULL;
     }
 
     // Check if source MAC address is set properly. If not, let's get the MAC address of the interface we're sending packets out of.
@@ -929,6 +933,17 @@ static void *sequence__thread_core(void *temp)
 
     // Free payloads.
     free(payloads);
+
+    pthread_exit(NULL);
+
+thread_exit:
+    // Cleanup AF_XDP socket.
+    tech_afxdp__sock_cleanup(xsk);
+
+    if (sock_fd > -1)
+    {
+        close(sock_fd);
+    }
 
     pthread_exit(NULL);
 }
