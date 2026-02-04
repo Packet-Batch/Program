@@ -3,13 +3,7 @@
 
 #include <tech/af-xdp/af_xdp.h>
 
-// #define VERY_RANDOM
-
-#define MAX_PCKT_LEN 0xFFFF
-#define MAX_THREADS 4096
-#define MAX_NAME_LEN 64
-
-typedef struct thread_info
+typedef struct sequence__thread_ctx
 {
     const char device[MAX_NAME_LEN];
     struct sequence seq;
@@ -21,7 +15,7 @@ typedef struct thread_info
 
     u32 src_ip;
     u32 dst_ip;
-} thread_info_t;
+} sequence__thread_ctx_t;
 
 void sequence__start(const char *interface, struct sequence seq, u16 seqc, struct cli cmd, int batch_size);
 void sequence__stop_all(struct config *cfg);
