@@ -76,7 +76,7 @@ static struct option cli_opts[] =
 
 #ifdef ENABLE_AF_XDP
         {"queue", required_argument, NULL, 100},
-        {"nowakeup", no_argument, NULL, 101},
+        {"wakeup", no_argument, NULL, 101},
         {"sharedumem", no_argument, NULL, 102},
         {"batchsize", required_argument, NULL, 103},
         {"skb", no_argument, NULL, 105},
@@ -784,7 +784,7 @@ void cli__parse(int argc, char **argv, cli_t *cmd)
             break;
 
         case 101:
-            cmd->tech_af_xdp.no_wake_up = 1;
+            cmd->tech_af_xdp.wake_up = 1;
 
             break;
 

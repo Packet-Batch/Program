@@ -20,7 +20,7 @@
 /* Global variables */
 // The XDP flags to load the AF_XDP/XSK sockets with.
 u32 xdp_flags = XDP_FLAGS_DRV_MODE;
-u32 bind_flags = XDP_USE_NEED_WAKEUP;
+u32 bind_flags = 0;
 int is_shared_umem = 0;
 u16 batch_size = 64;
 int static_queue_id = 0;
@@ -399,14 +399,14 @@ void tech_afxdp__setup_vars(cli_af_xdp_t *cmd_af_xdp, int verbose)
     }
 
     // Check for no wakeup mode.
-    if (cmd_af_xdp->no_wake_up)
+    if (cmd_af_xdp->wake_up)
     {
         if (verbose)
         {
-            fprintf(stdout, "Running AF_XDP sockets in no wake-up mode.\n");
+            fprintf(stdout, "Running AF_XDP sockets in wake-up mode.\n");
         }
 
-        bind_flags &= ~XDP_USE_NEED_WAKEUP;
+        bind_flags |= XDP_USE_NEED_WAKEUP;
     }
 
     // Check for a static queue ID.
