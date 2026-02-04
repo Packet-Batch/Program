@@ -15,12 +15,12 @@
  *
  * @param file_name The YAML config file to parse.
  * @param cfg A pointer to a config structure that'll be filled in with values.
- * @param only_seq If set to 1, this function will only parse sequences and add onto the number.
+ * @param config__only_seq If set to 1, this function will only parse sequences and add onto the number.
  * @param seq_num A pointer to the current sequence # (starting from 0).
  *
  * @return Returns 0 on success and -1 on failure.
  **/
-int parse_config(const char file_name[], config_t *cfg, int only_seq, int *seq_num, u8 log)
+int config__parse(const char file_name[], config_t *cfg, int config__only_seq, int *seq_num, u8 log)
 {
     // Attempt to open config file with JSON.
     json_object *root = json_object_from_file(file_name);
@@ -431,7 +431,7 @@ int parse_config(const char file_name[], config_t *cfg, int only_seq, int *seq_n
  *
  * @return Void
  **/
-void clear_sequence(config_t *cfg, int seq_num)
+void config__clr_seq(config_t *cfg, int seq_num)
 {
     sequence_t *seq = &cfg->seq[seq_num];
 
@@ -510,7 +510,7 @@ void clear_sequence(config_t *cfg, int seq_num)
  *
  * @return Void
  **/
-void print_config(config_t *cfg, int seq_cnt)
+void config__print(config_t *cfg, int seq_cnt)
 {
     fprintf(stdout, "Found %d sequences.\n", seq_cnt);
 

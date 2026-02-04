@@ -10,7 +10,7 @@
 #include <tech/af-xdp/cli.h>
 #endif
 
-typedef struct cmd_line
+typedef struct cli
 {
     const char *config;
     unsigned int list : 1;
@@ -154,8 +154,8 @@ typedef struct cmd_line
 #ifdef ENABLE_AF_XDP
     struct cli_af_xdp tech_af_xdp;
 #endif
-} cmd_line_t;
+} cli_t;
 
-void print_cmd_help();
-void parse_cli(int argc, char *argv[], struct cmd_line *cmd);
-void parse_cli_seq_opts(struct cmd_line *cmd, struct config *cfg);
+void cli__print_help();
+void cli__parse(int argc, char *argv[], struct cli *cmd);
+void cli__parse_seq_opts(struct cli *cmd, struct config *cfg);

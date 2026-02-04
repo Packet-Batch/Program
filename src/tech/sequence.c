@@ -64,7 +64,7 @@ u16 seq_cnt;
  *
  * @return Void
  **/
-void *thread_hdl(void *temp)
+void *sequence__thread_core(void *temp)
 {
     // Cast data as thread info.
     thread_info_t *ti = (thread_info_t *)temp;
@@ -123,11 +123,11 @@ void *thread_hdl(void *temp)
     }
 
     // Now match the protocol (we exclude UDP since that's default).
-    if (ti->seq.ip.protocol != NULL && !strcmp(lower_str(ti->seq.ip.protocol), "tcp"))
+    if (ti->seq.ip.protocol != NULL && !strcmp(utils__lower_str(ti->seq.ip.protocol), "tcp"))
     {
         protocol = IPPROTO_TCP;
     }
-    else if (ti->seq.ip.protocol != NULL && !strcmp(lower_str(ti->seq.ip.protocol), "icmp"))
+    else if (ti->seq.ip.protocol != NULL && !strcmp(utils__lower_str(ti->seq.ip.protocol), "icmp"))
     {
         protocol = IPPROTO_ICMP;
     }
@@ -136,16 +136,16 @@ void *thread_hdl(void *temp)
     int sock_fd;
 
     // Create AF_XDP socket and check.
-    xsk_socket_info_t *xsk = setup_socket(ti->device, ti->id, ti->cmd.verbose);
+    xsk_socket_info_t *xsk = tech_afxdp__sock_setup(ti->device, ti->id, ti->cmd.verbose);
 
-    sock_fd = get_socket_fd(xsk);
+    sock_fd = tech_afxdp__sock_fd(xsk);
 
     if (sock_fd < 0)
     {
         fprintf(stderr, "[%d] Error setting up AF_XDP socket on thread.\n", seq_num);
 
         // Attempt to cleanup socket.
-        cleanup_socket(xsk);
+        tech_afxdp__sock_cleanup(xsk);
 
         // Attempt to close the socket.
         close(sock_fd);
@@ -158,7 +158,7 @@ void *thread_hdl(void *temp)
     // Check if source MAC address is set properly. If not, let's get the MAC address of the interface we're sending packets out of.
     if (src_mac[0] == 0 && src_mac[1] == 0 && src_mac[2] == 0 && src_mac[3] == 0 && src_mac[4] == 0 && src_mac[5] == 0)
     {
-        if (get_src_mac_address(ti->device, src_mac) != 0)
+        if (utils__get_src_mac_addr(ti->device, src_mac) != 0)
         {
             fprintf(stdout, "[%d] WARNING - Failed to retrieve MAC address for %s.\n", seq_num, ti->device);
         }
@@ -173,7 +173,7 @@ void *thread_hdl(void *temp)
     if (dst_mac[0] == 0 && dst_mac[1] == 0 && dst_mac[2] == 0 && dst_mac[3] == 0 && dst_mac[4] == 0 && dst_mac[5] == 0)
     {
         // Retrieve the default gateway's MAC address and store it in dst_mac.
-        get_gw_mac((u8 *)&dst_mac);
+        utils__get_gw_mac((u8 *)&dst_mac);
     }
 
     if (ti->cmd.verbose)
@@ -374,7 +374,7 @@ void *thread_hdl(void *temp)
             if (pl->max_len > 0)
             {
                 // Calculate a random length
-                data_len[i] = rand_num(pl->min_len, pl->max_len, seed);
+                data_len[i] = utils__rand_num(pl->min_len, pl->max_len, seed);
                 pckt_len[i] = sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len + data_len[i];
 
                 // Fill out payload with random characters.
@@ -482,13 +482,13 @@ void *thread_hdl(void *temp)
         // Check if we need to generate random IP TTL.
         if (ti->seq.ip.min_ttl != ti->seq.ip.max_ttl)
         {
-            iph->ttl = rand_num(ti->seq.ip.min_ttl, ti->seq.ip.max_ttl, seed);
+            iph->ttl = utils__rand_num(ti->seq.ip.min_ttl, ti->seq.ip.max_ttl, seed);
         }
 
         // Check if we need to generate random IP ID.
         if (ti->seq.ip.min_id != ti->seq.ip.max_id)
         {
-            iph->id = htons(rand_num(ti->seq.ip.min_id, ti->seq.ip.max_id, seed));
+            iph->id = htons(utils__rand_num(ti->seq.ip.min_id, ti->seq.ip.max_id, seed));
         }
 
         // Check if source IP is defined. If not, get a random IP from the ranges and assign it to the IP header's source IP.
@@ -497,12 +497,12 @@ void *thread_hdl(void *temp)
             // Check if there are ranges.
             if (ti->seq.ip.range_count > 0)
             {
-                u16 ran = rand_num(0, (ti->seq.ip.range_count - 1), seed);
+                u16 ran = utils__rand_num(0, (ti->seq.ip.range_count - 1), seed);
 
                 // Ensure this range is valid.
                 if (ti->seq.ip.ranges[ran] != NULL)
                 {
-                    char *randip = rand_ip(ti->seq.ip.ranges[ran], seed);
+                    char *randip = utils__rand_ip(ti->seq.ip.ranges[ran], seed);
 
                     if (randip != NULL)
                     {
@@ -542,13 +542,13 @@ void *thread_hdl(void *temp)
             // Check for random UDP source port.
             if (ti->seq.udp.src_port == 0)
             {
-                udph->source = htons(rand_num(1, 65535, seed));
+                udph->source = htons(utils__rand_num(1, 65535, seed));
             }
 
             // Check for random UDP destination port.
             if (ti->seq.udp.dst_port == 0)
             {
-                udph->dest = htons(rand_num(1, 65535, seed));
+                udph->dest = htons(utils__rand_num(1, 65535, seed));
             }
         }
         else if (protocol == IPPROTO_TCP)
@@ -556,13 +556,13 @@ void *thread_hdl(void *temp)
             // Check for random TCP source port.
             if (ti->seq.tcp.src_port == 0)
             {
-                tcph->source = htons(rand_num(1, 65535, seed));
+                tcph->source = htons(utils__rand_num(1, 65535, seed));
             }
 
             // Check for random TCP destination port.
             if (ti->seq.tcp.dst_port == 0)
             {
-                tcph->dest = htons(rand_num(1, 65535, seed));
+                tcph->dest = htons(utils__rand_num(1, 65535, seed));
             }
         }
 
@@ -589,7 +589,7 @@ void *thread_hdl(void *temp)
                 if (pl->max_len > 0)
                 {
                     // Recalculate length to random.
-                    data_len[i] = rand_num(pl->min_len, pl->max_len, seed);
+                    data_len[i] = utils__rand_num(pl->min_len, pl->max_len, seed);
                     pckt_len[i] = sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len + data_len[i];
 
                     // Fill out payload with random characters.
@@ -662,7 +662,7 @@ void *thread_hdl(void *temp)
 
             if (pkts_cnt >= ti->batch_size)
             {
-                if ((ret = send_packet_batch(xsk, pkts, pkts_len, pkts_cnt)) < 0)
+                if ((ret = tech_afxdp__send_pkts(xsk, pkts, pkts_len, pkts_cnt)) < 0)
                 {
                     fprintf(stderr, "[%d] ERROR - Failed to send packet batch on AF_XDP socket :: %s.\n", seq_num, strerror(errno));
                 }
@@ -758,7 +758,7 @@ void *thread_hdl(void *temp)
     end_time[ti->seq_cnt] = time(NULL);
 
     // Cleanup AF_XDP socket.
-    cleanup_socket(xsk);
+    tech_afxdp__sock_cleanup(xsk);
 
     // Attempt to close the socket.
     close(sock_fd);
@@ -770,7 +770,7 @@ void *thread_hdl(void *temp)
 }
 
 /**
- * Starts a sequence in send mode.
+ * Starts a sequence.
  *
  * @param interface The networking interface to send packets out of.
  * @param seq A singular sequence structure containing relevant information for the packet.
@@ -780,7 +780,7 @@ void *thread_hdl(void *temp)
  *
  * @return Void
  **/
-void seq_send(const char *interface, sequence_t seq, u16 seq_cnt2, cmd_line_t cmd, int batch_size)
+void sequence__start(const char *interface, sequence_t seq, u16 seq_cnt2, cli_t cmd, int batch_size)
 {
     // First, make sure interface isn't NULL.
     if (interface == NULL)
@@ -913,7 +913,7 @@ void seq_send(const char *interface, sequence_t seq, u16 seq_cnt2, cmd_line_t cm
         thread_info_t *ti_dup = malloc(sizeof(thread_info_t));
         memcpy(ti_dup, &ti, sizeof(thread_info_t));
 
-        int ret = pthread_create(&threads[thread_cnt], &attr, thread_hdl, (void *)ti_dup);
+        int ret = pthread_create(&threads[thread_cnt], &attr, sequence__thread_core, (void *)ti_dup);
 
         if (ret != 0)
         {
@@ -943,11 +943,13 @@ void seq_send(const char *interface, sequence_t seq, u16 seq_cnt2, cmd_line_t cm
 }
 
 /**
- * Shuts down threads, prints stats for each sequence (if tracking is enabled), and exits program.
+ * Shuts down all sequence threads, prints stats, and exits program.
+ *
+ * @param cfg A pointer to the config structure.
  *
  * @return Void
  */
-void shutdown_prog(config_t *cfg)
+void sequence__stop_all(config_t *cfg)
 {
     for (int i = 0; i < thread_cnt; i++)
     {
@@ -996,6 +998,4 @@ void shutdown_prog(config_t *cfg)
     {
         free(cfg);
     }
-
-    exit(EXIT_SUCCESS);
 }

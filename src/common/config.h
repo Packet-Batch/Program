@@ -126,6 +126,6 @@ typedef struct config
     sequence_t seq[MAX_SEQUENCES];
 } config_t;
 
-int parse_config(const char file_name[], struct config *cfg, int only_seq, int *seq_num, u8 log);
-void clear_sequence(struct config *cfg, int seq_num);
-void print_config(struct config *cfg, int seq_cnt);
+int config__parse(const char file_name[], struct config *cfg, int config__only_seq, int *seq_num, u8 log);
+void config__clr_seq(struct config *cfg, int seq_num);
+void config__print(struct config *cfg, int seq_cnt);

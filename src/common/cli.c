@@ -91,7 +91,7 @@ static struct option cli_opts[] =
  *
  * @return void
  **/
-void print_cmd_help()
+void cli__print_help()
 {
     fprintf(stdout, "Usage: pcktbatch -c <configfile> [-v -h ...]\n");
 
@@ -157,13 +157,13 @@ void print_cmd_help()
 /**
  * Parses CLI options if --cli is passed.
  *
- * @param cmd The cmd_line structure to grab the command line values from.
+ * @param cmd The cli structure to grab the command line values from.
  * @param cfg The config structure to save the command line values to.
  * @param sequence
  *
  * @return void
  **/
-void parse_cli_seq_opts(cmd_line_t *cmd, config_t *cfg)
+void cli__parse_seq_opts(cli_t *cmd, config_t *cfg)
 {
 
     sequence_t *seq = &cfg->seq[0];
@@ -412,11 +412,11 @@ void parse_cli_seq_opts(cmd_line_t *cmd, config_t *cfg)
  *
  * @param argc The argument counter passed in the `int main()` function.
  * @param argv The argument array pointer passed in the `int main()` function.
- * @param cmd A pointer to the `cmd_line` structure that stores all command line values.
+ * @param cmd A pointer to the `cli` structure that stores all command line values.
  *
  * @return void
  **/
-void parse_cli(int argc, char **argv, cmd_line_t *cmd)
+void cli__parse(int argc, char **argv, cli_t *cmd)
 {
     int c;
 

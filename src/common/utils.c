@@ -15,7 +15,7 @@
  *
  * @return Void
  **/
-void get_gw_mac(u8 *mac)
+void utils__get_gw_mac(u8 *mac)
 {
     char cmd[] = "ip neigh | grep \"$(ip -4 route list 0/0|cut -d' ' -f3) \"|cut -d' ' -f5|tr '[a-f]' '[A-F]'";
 
@@ -45,7 +45,7 @@ void get_gw_mac(u8 *mac)
  *
  * @note If you're trying to return an integer within the 8-bit range, I'd recommend casting as u8 or similar.
  **/
-u16 rand_num(u16 min, u16 max, unsigned int seed)
+u16 utils__rand_num(u16 min, u16 max, unsigned int seed)
 {
     return (rand_r(&seed) % (max - min + 1)) + min;
 }
@@ -57,7 +57,7 @@ u16 rand_num(u16 min, u16 max, unsigned int seed)
  *
  * @return A character pointer to the lower-cased string.
  **/
-char *lower_str(char *str)
+char *utils__lower_str(char *str)
 {
     for (char *p = str; *p; p++)
     {
@@ -76,7 +76,7 @@ char *lower_str(char *str)
  *
  * @note Thanks for the help on https://stackoverflow.com/questions/64542446/choosing-a-random-ip-from-any-specific-cidr-range-in-c.
  **/
-char *rand_ip(char *range, unsigned int seed)
+char *utils__rand_ip(char *range, unsigned int seed)
 {
     // Split the <ip>/<cidr> and assign both values.
     char *split;
@@ -125,14 +125,14 @@ char *rand_ip(char *range, unsigned int seed)
     u32 mask = (1 << (32 - cidr)) - 1;
 
     // Generate a random number using rand_r(&seed).
-    u32 rand_num = rand_r(&seed);
+    u32 utils__rand_num = rand_r(&seed);
 
     // Generate new 32-bit IPv4 address from IP/CIDR range above.
-    u32 rand_ip = (ip_addr & ~mask) | (mask & rand_num);
+    u32 utils__rand_ip = (ip_addr & ~mask) | (mask & utils__rand_num);
 
     // Convert the new IP to a string and print it.
-    struct in_addr rand_ip_str;
-    rand_ip_str.s_addr = htonl(rand_ip);
+    struct in_addr utils__rand_ip_str;
+    utils__rand_ip_str.s_addr = htonl(utils__rand_ip);
 
     // Free pointers we longer need.
     if (s_ip != NULL)
@@ -141,7 +141,7 @@ char *rand_ip(char *range, unsigned int seed)
     if (cidr_str != NULL)
         free(cidr_str);
 
-    return inet_ntoa(rand_ip_str);
+    return inet_ntoa(utils__rand_ip_str);
 }
 
 /**
@@ -152,7 +152,7 @@ char *rand_ip(char *range, unsigned int seed)
  *
  * @return 0 on success or -1 on failure (path not found).
  **/
-int get_src_mac_address(const char *dev, u8 *src_mac)
+int utils__get_src_mac_addr(const char *dev, u8 *src_mac)
 {
     // Format path to source MAC on file system using network class.
     char path[255];

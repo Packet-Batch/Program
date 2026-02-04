@@ -30,7 +30,9 @@ config_t *cfg = NULL;
  */
 void sign_hdl(int sig)
 {
-    shutdown_prog(cfg);
+    sequence__stop_all(cfg);
+
+    exit(EXIT_SUCCESS);
 }
 
 /**
@@ -45,23 +47,23 @@ int main(int argc, char **argv)
 {
     // Create command line structure.
     opterr = 0;
-    cmd_line_t cmd = {0};
+    cli_t cmd = {0};
 
     cmd.tech_af_xdp.batch_size = 64;
 
     // Parse command line and store values into cmd.
-    parse_cli(argc, argv, &cmd);
+    cli__parse(argc, argv, &cmd);
 
     // Help menu.
     if (cmd.help)
     {
-        print_cmd_help();
+        cli__print_help();
 
         return EXIT_SUCCESS;
     }
 
     // Set global variables in AF_XDP program.
-    setup_af_xdp_variables(&cmd.tech_af_xdp, cmd.verbose);
+    tech_afxdp__setup_vars(&cmd.tech_af_xdp, cmd.verbose);
 
     // Check if config is specified.
     if (cmd.config == NULL)
@@ -76,34 +78,36 @@ int main(int argc, char **argv)
         }
     }
 
-    // Create config structure.
+    // Allocate memory for config.
+    // We allocate on heap due to size of config.
     cfg = malloc(sizeof(config_t));
     memset(cfg, 0, sizeof(*cfg));
 
     int seq_cnt = 0;
 
-    // Set default values on each sequence.
+    // We need to setup default values for all sequences before starting.
     for (int i = 0; i < MAX_SEQUENCES; i++)
     {
-        clear_sequence(cfg, i);
+        config__clr_seq(cfg, i);
     }
 
-    // Attempt to parse config.
+    // Attempt to parse config and we need to determine whether we're using CLI first sequence override.
     u8 log = 1;
 
     if (cmd.cli)
     {
-        fprintf(stdout, "Using command line...\n");
+        fprintf(stdout, "Using CLI first sequence override...\n");
         log = 0;
     }
 
-    parse_config(cmd.config, cfg, 0, &seq_cnt, log);
+    config__parse(cmd.config, cfg, 0, &seq_cnt, log);
 
+    // If CLI is specified, parse sequence options.
     if (cmd.cli)
     {
-        parse_cli_seq_opts(&cmd, cfg);
+        cli__parse_seq_opts(&cmd, cfg);
 
-        // Make sure we have at least one sequence.
+        // Ensure we have at least one sequence so the program doesn't immediately close.
         if (seq_cnt < 1)
             seq_cnt = 1;
     }
@@ -111,13 +115,13 @@ int main(int argc, char **argv)
     // Check for list option. If so, print helpful information for configuration.
     if (cmd.list)
     {
-        print_config(cfg, seq_cnt);
+        config__print(cfg, seq_cnt);
 
         return EXIT_SUCCESS;
     }
 
 #ifdef CONF_UNLOCK_RLIMIT
-    // Raise RLImit.
+    // Raising the stack limit to unlimited if needed.
     struct rlimit rl;
     rl.rlim_cur = RLIM_INFINITY;
     rl.rlim_max = RLIM_INFINITY;
@@ -128,19 +132,21 @@ int main(int argc, char **argv)
     }
 #endif
 
-    // Setup signals to exit the program.
+    // Setup signals so we can catch and gracefully shutdown the program instead of killing it.
     signal(SIGINT, sign_hdl);
     signal(SIGTERM, sign_hdl);
 
-    // Loop through each sequence found.
+    // Loop through all sequences and start them.
     for (int i = 0; i < seq_cnt; i++)
     {
-        seq_send(cfg->interface, cfg->seq[i], seq_cnt, cmd, cmd.tech_af_xdp.batch_size);
+        sequence__start(cfg->interface, cfg->seq[i], seq_cnt, cmd, cmd.tech_af_xdp.batch_size);
 
+        // Sleep for 1 second between sequences.
         sleep(1);
     }
 
-    shutdown_prog(cfg);
+    // Stop all sequences and print stats.
+    sequence__stop_all(cfg);
 
     // Close program successfully.
     return EXIT_SUCCESS;

@@ -133,7 +133,7 @@ static void complete_tx(xsk_socket_info_t *xsk)
 /**
  * Configures the UMEM area for our AF_XDP/XSK sockets to use for rings.
  *
- * @param buffer The blank buffer we allocated in setup_socket().
+ * @param buffer The blank buffer we allocated in tech_afxdp__sock_setup().
  * @param size The buffer size.
  *
  * @return Returns a pointer to the UMEM area instead of the XSK UMEM information structure (struct xsk_umem_info).
@@ -162,7 +162,7 @@ static xsk_umem_info_t *configure_xsk_umem(void *buffer, u64 size)
         return NULL;
     }
 
-    // Assign the buffer we created in setup_socket() to umem buffer.
+    // Assign the buffer we created in tech_afxdp__sock_setup() to umem buffer.
     umem->buffer = buffer;
 
     // Return umem pointer.
@@ -172,7 +172,7 @@ static xsk_umem_info_t *configure_xsk_umem(void *buffer, u64 size)
 /**
  * Configures an AF_XDP/XSK socket.
  *
- * @param umem A pointer to the umem we created in setup_socket().
+ * @param umem A pointer to the umem we created in tech_afxdp__sock_setup().
  * @param queue_id The TX queue ID to use.
  * @param dev The name of the interface we're binding to.
  *
@@ -260,6 +260,19 @@ error_exit:
 }
 
 /**
+ * Retrieves the memory location in the UMEM at address.
+ *
+ * @param xsk A pointer to the XSK socket info.
+ * @param addr The address received by get_umem_addr.
+ *
+ * @return Pointer to address in memory of UMEM.
+ **/
+static inline void *get_umem_loc(xsk_socket_info_t *xsk, u64 addr)
+{
+    return xsk_umem__get_data(xsk->umem->buffer, addr);
+}
+
+/**
  * Internal function to send a batch of packets.
  *
  * @param xsk A pointer to the XSK socket info.
@@ -269,7 +282,7 @@ error_exit:
  *
  * @return Returns 0 on success and -1 on failure.
  **/
-static inline int send_packet_batch_internal(xsk_socket_info_t *xsk, void *buffer, u16 *lengths, u16 amt)
+static inline int tech_afxdp__send_pkts_internal(xsk_socket_info_t *xsk, void *buffer, u16 *lengths, u16 amt)
 {
     u32 tx_idx = 0;
 
@@ -325,9 +338,9 @@ static inline int send_packet_batch_internal(xsk_socket_info_t *xsk, void *buffe
  *
  * @return Returns 0 on success and -1 on failure.
  **/
-int send_packet_batch(xsk_socket_info_t *xsk, void *pkts, u16 *pkts_len, u16 amt)
+int tech_afxdp__send_pkts(xsk_socket_info_t *xsk, void *pkts, u16 *pkts_len, u16 amt)
 {
-    return send_packet_batch_internal(xsk, pkts, pkts_len, amt);
+    return tech_afxdp__send_pkts_internal(xsk, pkts, pkts_len, amt);
 }
 
 /**
@@ -337,7 +350,7 @@ int send_packet_batch(xsk_socket_info_t *xsk, void *pkts, u16 *pkts_len, u16 amt
  *
  * @return The socket FD (-1 on failure)
  */
-int get_socket_fd(xsk_socket_info_t *xsk)
+int tech_afxdp__sock_fd(xsk_socket_info_t *xsk)
 {
     return xsk_socket__fd(xsk->xsk);
 }
@@ -350,22 +363,9 @@ int get_socket_fd(xsk_socket_info_t *xsk)
  *
  * @return 64-bit address of location.
  **/
-u64 get_umem_addr(xsk_socket_info_t *xsk, int idx)
+static inline u64 get_umem_addr(xsk_socket_info_t *xsk, int idx)
 {
     return xsk->umem_frame_addr[idx];
-}
-
-/**
- * Retrieves the memory location in the UMEM at address.
- *
- * @param xsk A pointer to the XSK socket info.
- * @param addr The address received by get_umem_addr.
- *
- * @return Pointer to address in memory of UMEM.
- **/
-void *get_umem_loc(xsk_socket_info_t *xsk, u64 addr)
-{
-    return xsk_umem__get_data(xsk->umem->buffer, addr);
 }
 
 /**
@@ -376,7 +376,7 @@ void *get_umem_loc(xsk_socket_info_t *xsk, u64 addr)
  *
  * @return Void
  **/
-void setup_af_xdp_variables(cli_af_xdp_t *cmd_af_xdp, int verbose)
+void tech_afxdp__setup_vars(cli_af_xdp_t *cmd_af_xdp, int verbose)
 {
     // Check for zero-copy or copy modes.
     if (cmd_af_xdp->zero_copy)
@@ -461,7 +461,7 @@ void setup_af_xdp_variables(cli_af_xdp_t *cmd_af_xdp, int verbose)
  *
  * @return 0 on success and -1 on failure.
  **/
-xsk_umem_info_t *setup_umem(int thread_id)
+static inline xsk_umem_info_t *setup_umem(int thread_id)
 {
     // This indicates the buffer for frames and frame size for the UMEM area.
     void *frame_buffer;
@@ -487,7 +487,7 @@ xsk_umem_info_t *setup_umem(int thread_id)
  *
  * @return Returns the AF_XDP's socket FD or -1 on failure.
  **/
-xsk_socket_info_t *setup_socket(const char *dev, u16 thread_id, int verbose)
+xsk_socket_info_t *tech_afxdp__sock_setup(const char *dev, u16 thread_id, int verbose)
 {
     // Verbose message.
     if (verbose)
@@ -559,7 +559,7 @@ xsk_socket_info_t *setup_socket(const char *dev, u16 thread_id, int verbose)
  *
  * @return Void
  **/
-void cleanup_socket(xsk_socket_info_t *xsk)
+void tech_afxdp__sock_cleanup(xsk_socket_info_t *xsk)
 {
     // If the AF_XDP/XSK socket isn't NULL, delete it.
     if (xsk->xsk != NULL)

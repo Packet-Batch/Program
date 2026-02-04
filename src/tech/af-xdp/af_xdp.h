@@ -44,11 +44,8 @@ typedef struct xsk_socket_info
     u32 outstanding_tx;
 } xsk_socket_info_t;
 
-int send_packet_batch(struct xsk_socket_info *xsk, void *pkts, u16 *pkts_len, u16 amt);
-u64 get_umem_addr(struct xsk_socket_info *xsk, int idx);
-void *get_umem_loc(struct xsk_socket_info *xsk, u64 addr);
-void setup_af_xdp_variables(struct cli_af_xdp *cmd_af_xdp, int verbose);
-struct xsk_umem_info *setup_umem(int index);
-struct xsk_socket_info *setup_socket(const char *dev, u16 thread_id, int verbose);
-void cleanup_socket(struct xsk_socket_info *xsk);
-int get_socket_fd(struct xsk_socket_info *xsk);
+int tech_afxdp__send_pkts(struct xsk_socket_info *xsk, void *pkts, u16 *pkts_len, u16 amt);
+void tech_afxdp__setup_vars(struct cli_af_xdp *cmd_af_xdp, int verbose);
+struct xsk_socket_info *tech_afxdp__sock_setup(const char *dev, u16 thread_id, int verbose);
+void tech_afxdp__sock_cleanup(struct xsk_socket_info *xsk);
+int tech_afxdp__sock_fd(struct xsk_socket_info *xsk);
