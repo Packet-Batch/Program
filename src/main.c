@@ -47,6 +47,8 @@ int main(int argc, char **argv)
     opterr = 0;
     cmd_line_t cmd = {0};
 
+    cmd.tech_af_xdp.batch_size = 64;
+
     // Parse command line and store values into cmd.
     parse_cli(argc, argv, &cmd);
 
