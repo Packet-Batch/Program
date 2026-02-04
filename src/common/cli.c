@@ -11,19 +11,9 @@
 
 #ifdef ENABLE_AF_XDP
 #include <tech/af-xdp/cli.h>
-
-static const struct option af_xdp_long_opts[] =
-    {
-        {"queue", required_argument, NULL, 100},
-        {"nowakeup", no_argument, NULL, 101},
-        {"sharedumem", no_argument, NULL, 102},
-        {"batchsize", required_argument, NULL, 103},
-        {"skb", no_argument, NULL, 105},
-        {"zerocopy", no_argument, NULL, 106},
-        {"copy", no_argument, NULL, 107}};
 #endif
 
-static struct option common_opts[] =
+static struct option cli_opts[] =
     {
         {"cfg", required_argument, NULL, 'c'},
         {"cli", no_argument, NULL, 'z'},
@@ -84,44 +74,17 @@ static struct option common_opts[] =
         {"pfile", required_argument, NULL, 36},
         {"pstring", required_argument, NULL, 37},
 
-        {NULL, 0, NULL, 0}};
-
-/**
- * Internal function to retrieve options.
- **/
-static struct option *get_cli_opts()
-{
 #ifdef ENABLE_AF_XDP
-    size_t base_cnt = 0;
-
-    while (common_opts[base_cnt].name != NULL)
-    {
-        base_cnt++;
-    }
-
-    size_t af_xdp_cnt = 0;
-
-    while (af_xdp_long_opts[af_xdp_cnt].name != NULL)
-    {
-        af_xdp_cnt++;
-    }
-
-    struct option *merged = malloc(sizeof(struct option) * (base_cnt + af_xdp_cnt + 1));
-
-    // To Do: Improve error handling.
-    if (!merged)
-    {
-        return common_opts;
-    }
-
-    memcpy(merged, common_opts, sizeof(struct option) * base_cnt);
-    memcpy(merged + base_cnt, af_xdp_long_opts, sizeof(struct option) * (af_xdp_cnt + 1));
-
-    return merged;
-#else
-    return common_opts;
+        {"queue", required_argument, NULL, 100},
+        {"nowakeup", no_argument, NULL, 101},
+        {"sharedumem", no_argument, NULL, 102},
+        {"batchsize", required_argument, NULL, 103},
+        {"skb", no_argument, NULL, 105},
+        {"zerocopy", no_argument, NULL, 106},
+        {"copy", no_argument, NULL, 107},
 #endif
-}
+
+        {NULL, 0, NULL, 0}};
 
 /**
  * Prints the command line help menu.
@@ -455,11 +418,9 @@ void parse_cli_seq_opts(cmd_line_t *cmd, config_t *cfg)
  **/
 void parse_cli(int argc, char **argv, cmd_line_t *cmd)
 {
-    struct option *long_opts = get_cli_opts();
+    int c;
 
-    int c = -1;
-
-    while ((c = getopt_long(argc, argv, "c:zhvl", long_opts, NULL)) != -1)
+    while ((c = getopt_long(argc, argv, "c:zhvl", cli_opts, NULL)) != -1)
     {
         switch (c)
         {
@@ -854,8 +815,4 @@ void parse_cli(int argc, char **argv, cmd_line_t *cmd)
 #endif
         }
     }
-
-#ifdef ENABLE_AF_XDP
-    free(long_opts);
-#endif
 }

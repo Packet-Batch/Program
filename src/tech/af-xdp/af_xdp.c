@@ -307,60 +307,9 @@ static inline int send_packet_batch_internal(xsk_socket_info_t *xsk, void *buffe
     xsk_ring_prod__submit(&xsk->tx, amt);
     xsk->outstanding_tx += amt;
 
-    if (xsk->outstanding_tx >= batch_size / 2)
+    if (xsk->outstanding_tx >= batch_size)
     {
         complete_tx(xsk);
-    }
-
-    return 0;
-}
-
-/**
- * Sends a single packet buffer out the AF_XDP socket's TX path.
- *
- * @param xsk A pointer to the XSK socket info.
- * @param thread_id The thread ID to use to lookup the AF_XDP socket.
- * @param pckt The packet buffer starting at the Ethernet header.
- * @param length The packet buffer's length.
- * @param verbose Whether verbose is enabled or not.
- *
- * @return Returns 0 on success and -1 on failure.
- **/
-int send_packet(xsk_socket_info_t *xsk, int thread_id, void *pckt, u16 length, u8 verbose)
-{
-    static __thread struct
-    {
-        void *packets[MAX_BATCH_SIZE];
-        u16 lengths[MAX_BATCH_SIZE];
-        u8 packet_data[MAX_BATCH_SIZE][MAX_PKT_LEN];
-        int count;
-    } batch = {0};
-
-    // If packet is null and 0, try flushing.
-    if (pckt == NULL && length == 0)
-    {
-        if (batch.count > 0)
-        {
-            int ret = send_packet_batch_internal(xsk, batch.packets, batch.lengths, batch.count);
-            batch.count = 0;
-            return ret;
-        }
-        return 0;
-    }
-
-    // Copy packet data to local buffer (since caller's buffer may be reused)
-    memcpy(batch.packet_data[batch.count], pckt, length);
-    batch.packets[batch.count] = batch.packet_data[batch.count];
-    batch.lengths[batch.count] = length;
-    batch.count++;
-
-    // Send batch when full
-    if (batch.count >= batch_size)
-    {
-        int ret = send_packet_batch_internal(xsk, batch.packets, batch.lengths, batch.count);
-        batch.count = 0;
-
-        return ret;
     }
 
     return 0;
@@ -379,18 +328,6 @@ int send_packet(xsk_socket_info_t *xsk, int thread_id, void *pckt, u16 length, u
 int send_packet_batch(xsk_socket_info_t *xsk, void *pkts, u16 *pkts_len, u16 amt)
 {
     return send_packet_batch_internal(xsk, pkts, pkts_len, amt);
-}
-
-/**
- * Flushes any remaining packets in the send queue.
- *
- * @param xsk A pointer to the XSK socket info.
- *
- * @return Void
- **/
-void flush_send_queue(xsk_socket_info_t *xsk)
-{
-    send_packet(xsk, 0, NULL, 0, 0);
 }
 
 /**
