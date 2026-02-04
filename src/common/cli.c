@@ -813,6 +813,14 @@ void parse_cli(int argc, char **argv, cmd_line_t *cmd)
 
             break;
 #endif
+
+        case '?':
+            fprintf(stderr, "Unknown option: -%c\n", optopt);
+
+            break;
+
+        default:
+            fprintf(stderr, "Unknown option: -%c\n", optopt);
         }
     }
 }
