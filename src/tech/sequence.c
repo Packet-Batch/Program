@@ -9,7 +9,6 @@
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
-#include <net/if.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdio.h>
