@@ -8,14 +8,12 @@
 
 #define MAX_PAYLOADS 256
 
-typedef struct eth_opt
-{
+typedef struct eth_opt {
     char *src_mac;
     char *dst_mac;
 } eth_opt_t;
 
-typedef struct ip_opt
-{
+typedef struct ip_opt {
     // Protocol (Required).
     char *protocol;
 
@@ -40,8 +38,7 @@ typedef struct ip_opt
     unsigned int csum : 1;
 } ip_opt_t;
 
-typedef struct tcp_opt
-{
+typedef struct tcp_opt {
     u16 src_port;
     u16 dst_port;
 
@@ -59,20 +56,17 @@ typedef struct tcp_opt
     unsigned int one_connection : 1;
 } tcp_opt_t;
 
-typedef struct udp_opt
-{
+typedef struct udp_opt {
     u16 src_port;
     u16 dst_port;
 } udp_opt_t;
 
-typedef struct icmp_opt
-{
+typedef struct icmp_opt {
     u8 code;
     u8 type;
 } icmp_opt_t;
 
-typedef struct payload_opt
-{
+typedef struct payload_opt {
     u16 min_len;
     u16 max_len;
     unsigned int is_static : 1;
@@ -81,8 +75,7 @@ typedef struct payload_opt
     char *exact;
 } payload_opt_t;
 
-typedef struct sequence
-{
+typedef struct sequence {
     // General options.
     char *interface;
 
@@ -118,14 +111,14 @@ typedef struct sequence
     payload_opt_t pls[MAX_PAYLOADS];
 } sequence_t;
 
-typedef struct config
-{
+typedef struct config {
     // Device options.
     char *interface;
 
     sequence_t seq[MAX_SEQUENCES];
 } config_t;
 
-int config__parse(const char file_name[], struct config *cfg, int config__only_seq, int *seq_num, u8 log);
+int config__parse(const char file_name[], struct config *cfg,
+                  int config__only_seq, int *seq_num, u8 log);
 void config__clr_seq(struct config *cfg, int seq_num);
 void config__print(struct config *cfg, int seq_cnt);

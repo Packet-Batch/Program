@@ -1,6 +1,6 @@
+#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <getopt.h>
 #include <string.h>
 
 #include <common/config.h>
@@ -13,128 +13,145 @@
 #include <tech/af-xdp/cli.h>
 #endif
 
-static struct option cli_opts[] =
-    {
-        {"cfg", required_argument, NULL, 'c'},
-        {"cli", no_argument, NULL, 'z'},
-        {"list", no_argument, NULL, 'l'},
-        {"verbose", no_argument, NULL, 'v'},
-        {"help", no_argument, NULL, 'h'},
+static struct option cli_opts[] = {
+    {"cfg", required_argument, NULL, 'c'},
+    {"cli", no_argument, NULL, 'z'},
+    {"list", no_argument, NULL, 'l'},
+    {"verbose", no_argument, NULL, 'v'},
+    {"help", no_argument, NULL, 'h'},
 
-        /* CLI options. */
-        {"interface", required_argument, NULL, 0},
-        {"send", required_argument, NULL, 1},
-        {"block", required_argument, NULL, 2},
-        {"maxpckts", required_argument, NULL, 3},
-        {"time", required_argument, NULL, 4},
-        {"delay", required_argument, NULL, 5},
-        {"track", required_argument, NULL, 6},
-        {"maxbytes", required_argument, NULL, 7},
-        {"threads", required_argument, NULL, 8},
-        {"l4csum", required_argument, NULL, 9},
-        {"pps", required_argument, NULL, 43},
-        {"bps", required_argument, NULL, 44},
+    /* CLI options. */
+    {"interface", required_argument, NULL, 0},
+    {"send", required_argument, NULL, 1},
+    {"block", required_argument, NULL, 2},
+    {"maxpckts", required_argument, NULL, 3},
+    {"time", required_argument, NULL, 4},
+    {"delay", required_argument, NULL, 5},
+    {"track", required_argument, NULL, 6},
+    {"maxbytes", required_argument, NULL, 7},
+    {"threads", required_argument, NULL, 8},
+    {"l4csum", required_argument, NULL, 9},
+    {"pps", required_argument, NULL, 43},
+    {"bps", required_argument, NULL, 44},
 
-        {"smac", required_argument, NULL, 10},
-        {"dmac", required_argument, NULL, 11},
+    {"smac", required_argument, NULL, 10},
+    {"dmac", required_argument, NULL, 11},
 
-        {"minttl", required_argument, NULL, 12},
-        {"maxttl", required_argument, NULL, 13},
-        {"minid", required_argument, NULL, 14},
-        {"maxid", required_argument, NULL, 15},
-        {"sip", required_argument, NULL, 16},
-        {"dip", required_argument, NULL, 17},
-        {"protocol", required_argument, NULL, 18},
-        {"tos", required_argument, NULL, 19},
-        {"l3csum", required_argument, NULL, 20},
+    {"minttl", required_argument, NULL, 12},
+    {"maxttl", required_argument, NULL, 13},
+    {"minid", required_argument, NULL, 14},
+    {"maxid", required_argument, NULL, 15},
+    {"sip", required_argument, NULL, 16},
+    {"dip", required_argument, NULL, 17},
+    {"protocol", required_argument, NULL, 18},
+    {"tos", required_argument, NULL, 19},
+    {"l3csum", required_argument, NULL, 20},
 
-        {"usport", required_argument, NULL, 21},
-        {"udport", required_argument, NULL, 22},
+    {"usport", required_argument, NULL, 21},
+    {"udport", required_argument, NULL, 22},
 
-        {"tsport", required_argument, NULL, 23},
-        {"tdport", required_argument, NULL, 24},
-        {"syn", required_argument, NULL, 25},
-        {"ack", required_argument, NULL, 26},
-        {"psh", required_argument, NULL, 27},
-        {"rst", required_argument, NULL, 28},
-        {"fin", required_argument, NULL, 29},
-        {"urg", required_argument, NULL, 30},
-        {"ece", required_argument, NULL, 41},
-        {"cwr", required_argument, NULL, 42},
-        {"usesocket", required_argument, NULL, 31},
-        {"oneconnection", required_argument, NULL, 40},
+    {"tsport", required_argument, NULL, 23},
+    {"tdport", required_argument, NULL, 24},
+    {"syn", required_argument, NULL, 25},
+    {"ack", required_argument, NULL, 26},
+    {"psh", required_argument, NULL, 27},
+    {"rst", required_argument, NULL, 28},
+    {"fin", required_argument, NULL, 29},
+    {"urg", required_argument, NULL, 30},
+    {"ece", required_argument, NULL, 41},
+    {"cwr", required_argument, NULL, 42},
+    {"usesocket", required_argument, NULL, 31},
+    {"oneconnection", required_argument, NULL, 40},
 
-        {"icode", required_argument, NULL, 38},
-        {"itype", required_argument, NULL, 39},
+    {"icode", required_argument, NULL, 38},
+    {"itype", required_argument, NULL, 39},
 
-        {"pmin", required_argument, NULL, 32},
-        {"pmax", required_argument, NULL, 33},
-        {"pstatic", required_argument, NULL, 34},
-        {"pexact", required_argument, NULL, 35},
-        {"pfile", required_argument, NULL, 36},
-        {"pstring", required_argument, NULL, 37},
+    {"pmin", required_argument, NULL, 32},
+    {"pmax", required_argument, NULL, 33},
+    {"pstatic", required_argument, NULL, 34},
+    {"pexact", required_argument, NULL, 35},
+    {"pfile", required_argument, NULL, 36},
+    {"pstring", required_argument, NULL, 37},
 
 #ifdef ENABLE_AF_XDP
-        {"queue", required_argument, NULL, 100},
-        {"wakeup", no_argument, NULL, 101},
-        {"sharedumem", no_argument, NULL, 102},
-        {"batchsize", required_argument, NULL, 103},
-        {"skb", no_argument, NULL, 105},
-        {"zerocopy", no_argument, NULL, 106},
-        {"copy", no_argument, NULL, 107},
+    {"queue", required_argument, NULL, 100},
+    {"wakeup", no_argument, NULL, 101},
+    {"sharedumem", no_argument, NULL, 102},
+    {"batchsize", required_argument, NULL, 103},
+    {"skb", no_argument, NULL, 105},
+    {"zerocopy", no_argument, NULL, 106},
+    {"copy", no_argument, NULL, 107},
 #endif
 
-        {NULL, 0, NULL, 0}};
+    {NULL, 0, NULL, 0}};
 
 /**
  * Prints the command line help menu.
  *
  * @return void
  **/
-void cli__print_help()
-{
+void cli__print_help() {
     fprintf(stdout, "Usage: pcktbatch -c <configfile> [-v -h ...]\n");
 
     // Basic.
     fprintf(stdout, "Basic\n");
     fprintf(stdout, "\t-c --cfg => Path to config file.");
     fprintf(stdout, "\t-l --list => Print full config values.\n");
-    fprintf(stdout, "\t-v --verbose => Provide verbose output on packets sent.\n");
+    fprintf(stdout,
+            "\t-v --verbose => Provide verbose output on packets sent.\n");
     fprintf(stdout, "\t-h --help => Print out the help menu and exit.\n");
 
     // First sequence override.
     fprintf(stdout, "First Sequence/Packet Override\n");
-    fprintf(stdout, "\t-z --cli => Enables the first sequence/packet override.\n\n");
+    fprintf(stdout,
+            "\t-z --cli => Enables the first sequence/packet override.\n\n");
 
     fprintf(stdout, "\t--interface => The interface to send out of.");
     fprintf(stdout, "\t--block => Whether to enable blocking mode (0/1).");
-    fprintf(stdout, "\t--track => Track packet and byte statistics and print at the end (0/1). Will impact performance!\n");
-    fprintf(stdout, "\t--maxpckts => The maximum amount of packets to send during this sequence before exiting.\n");
-    fprintf(stdout, "\t--maxbytes => The maximum amount of bytes to send during this sequence before exiting.\n");
-    fprintf(stdout, "\t--pps => The amount of packets per second to limit this sequence to (0 = disabled).\n");
-    fprintf(stdout, "\t--bps => The amount of bytes per second to limit this sequence to (0 = disabled)\n");
-    fprintf(stdout, "\t--delay => The delay in-between sending packets on each thread.\n");
-    fprintf(stdout, "\t--threads => The amount of threads and sockets to spawn (0 = CPU count).\n");
-    fprintf(stdout, "\t--l4csum => Whether to calculate the layer-4 checksum (TCP, UDP, and ICMP) (0/1).\n\n");
+    fprintf(stdout, "\t--track => Track packet and byte statistics and print "
+                    "at the end (0/1). Will impact performance!\n");
+    fprintf(stdout, "\t--maxpckts => The maximum amount of packets to send "
+                    "during this sequence before exiting.\n");
+    fprintf(stdout, "\t--maxbytes => The maximum amount of bytes to send "
+                    "during this sequence before exiting.\n");
+    fprintf(stdout, "\t--pps => The amount of packets per second to limit this "
+                    "sequence to (0 = disabled).\n");
+    fprintf(stdout, "\t--bps => The amount of bytes per second to limit this "
+                    "sequence to (0 = disabled)\n");
+    fprintf(
+        stdout,
+        "\t--delay => The delay in-between sending packets on each thread.\n");
+    fprintf(stdout, "\t--threads => The amount of threads and sockets to spawn "
+                    "(0 = CPU count).\n");
+    fprintf(stdout, "\t--l4csum => Whether to calculate the layer-4 checksum "
+                    "(TCP, UDP, and ICMP) (0/1).\n\n");
 
     fprintf(stdout, "\t--smac => The ethernet source MAC address to use.\n");
-    fprintf(stdout, "\t--dmac => The ethernet destination MAC address to use.\n\n");
+    fprintf(stdout,
+            "\t--dmac => The ethernet destination MAC address to use.\n\n");
 
     fprintf(stdout, "\t--minttl => The minimum IP TTL to use.\n");
     fprintf(stdout, "\t--maxttl => The maximum IP TTL to use.\n");
     fprintf(stdout, "\t--minid => The minimum IP ID to use.\n");
     fprintf(stdout, "\t--maxid => The maximum IP ID to use.\n");
-    fprintf(stdout, "\t--sip => The source IP (one range is supported in CIDR format).\n");
+    fprintf(
+        stdout,
+        "\t--sip => The source IP (one range is supported in CIDR format).\n");
     fprintf(stdout, "\t--dip => The destination IP.\n");
-    fprintf(stdout, "\t--protocol => The protocol to use (TCP, UDP, or ICMP).\n");
+    fprintf(stdout,
+            "\t--protocol => The protocol to use (TCP, UDP, or ICMP).\n");
     fprintf(stdout, "\t--tos => The IP TOS to use.\n");
-    fprintf(stdout, "\t--l3csum => Whether to calculate the IP header checksum or not (0/1).\n\n");
+    fprintf(stdout, "\t--l3csum => Whether to calculate the IP header checksum "
+                    "or not (0/1).\n\n");
 
     fprintf(stdout, "\t--usport => The UDP source port.\n");
     fprintf(stdout, "\t--udport => The UDP destination port.\n\n");
 
-    fprintf(stdout, "\t--cooked => Use cooked TCP sockets which establishes a connection automatically.\n");
-    fprintf(stdout, "\t--oneconnection => Send packets over the same socket/connection instead of making a new connection for each packet.\n");
+    fprintf(stdout, "\t--cooked => Use cooked TCP sockets which establishes a "
+                    "connection automatically.\n");
+    fprintf(stdout,
+            "\t--oneconnection => Send packets over the same socket/connection "
+            "instead of making a new connection for each packet.\n");
     fprintf(stdout, "\t--tsport => The TCP source port.\n");
     fprintf(stdout, "\t--tdport => The TCP source port.\n");
     fprintf(stdout, "\t--syn => Set the TCP SYN flag (0/1).\n");
@@ -150,8 +167,10 @@ void cli__print_help()
     fprintf(stdout, "\t--pmax => The maximum payload data.\n");
     fprintf(stdout, "\t--pstatic => Use static payload (0/1).\n");
     fprintf(stdout, "\t--pexact => The exact payload string.\n");
-    fprintf(stdout, "\t--pfile => Whether to parse a file as the 'pexact' string instead.\n");
-    fprintf(stdout, "\t--pstring => Parse the 'pexact' string or file as a string instead of hexadecimal.\n");
+    fprintf(stdout, "\t--pfile => Whether to parse a file as the 'pexact' "
+                    "string instead.\n");
+    fprintf(stdout, "\t--pstring => Parse the 'pexact' string or file as a "
+                    "string instead of hexadecimal.\n");
 }
 
 /**
@@ -163,245 +182,196 @@ void cli__print_help()
  *
  * @return void
  **/
-void cli__parse_seq_opts(cli_t *cmd, config_t *cfg)
-{
+void cli__parse_seq_opts(cli_t *cmd, config_t *cfg) {
 
     sequence_t *seq = &cfg->seq[0];
 
-    if (cmd->interface != NULL && cmd->is_interface)
-    {
+    if (cmd->interface != NULL && cmd->is_interface) {
         cfg->interface = cmd->interface;
         seq->interface = cmd->interface;
     }
 
-    if (cmd->is_block)
-    {
+    if (cmd->is_block) {
         seq->block = cmd->block;
     }
 
-    if (cmd->is_track)
-    {
+    if (cmd->is_track) {
         seq->track = cmd->track;
     }
 
-    if (cmd->is_max_pckts)
-    {
+    if (cmd->is_max_pckts) {
         seq->max_pckts = cmd->max_pckts;
     }
 
-    if (cmd->is_max_bytes)
-    {
+    if (cmd->is_max_bytes) {
         seq->max_bytes = cmd->max_bytes;
     }
 
-    if (cmd->is_pps)
-    {
+    if (cmd->is_pps) {
         seq->pps = cmd->pps;
     }
 
-    if (cmd->is_bps)
-    {
+    if (cmd->is_bps) {
         seq->bps = cmd->bps;
     }
 
-    if (cmd->is_time)
-    {
+    if (cmd->is_time) {
         seq->time = cmd->time;
     }
 
-    if (cmd->is_delay)
-    {
+    if (cmd->is_delay) {
         seq->delay = cmd->delay;
     }
 
-    if (cmd->is_threads)
-    {
+    if (cmd->is_threads) {
         seq->threads = cmd->threads;
     }
 
-    if (cmd->is_l4_csum)
-    {
+    if (cmd->is_l4_csum) {
         seq->l4_csum = cmd->l4_csum;
     }
 
-    if (cmd->is_src_mac)
-    {
+    if (cmd->is_src_mac) {
         seq->eth.src_mac = cmd->src_mac;
     }
 
-    if (cmd->is_dst_mac)
-    {
+    if (cmd->is_dst_mac) {
         seq->eth.dst_mac = cmd->dst_mac;
     }
 
-    if (cmd->is_ttl_min)
-    {
+    if (cmd->is_ttl_min) {
         seq->ip.min_ttl = cmd->ttl_min;
     }
 
-    if (cmd->is_ttl_max)
-    {
+    if (cmd->is_ttl_max) {
         seq->ip.max_ttl = cmd->ttl_max;
     }
 
-    if (cmd->is_id_min)
-    {
+    if (cmd->is_id_min) {
         seq->ip.min_id = cmd->id_min;
     }
 
-    if (cmd->is_id_max)
-    {
+    if (cmd->is_id_max) {
         seq->ip.max_id = cmd->id_max;
     }
 
-    if (cmd->src_ip != NULL && cmd->is_src_ip)
-    {
+    if (cmd->src_ip != NULL && cmd->is_src_ip) {
         // Check for range.
-        if (strstr(cmd->src_ip, "/") != NULL)
-        {
+        if (strstr(cmd->src_ip, "/") != NULL) {
             seq->ip.src_ip = 0;
             seq->ip.range_count = 1;
             seq->ip.ranges[0] = cmd->src_ip;
-        }
-        else
-        {
+        } else {
             seq->ip.src_ip = cmd->src_ip;
         }
     }
 
-    if (cmd->dst_ip != NULL && cmd->is_dst_ip)
-    {
+    if (cmd->dst_ip != NULL && cmd->is_dst_ip) {
         seq->ip.dst_ip = cmd->dst_ip;
     }
 
-    if (cmd->is_protocol)
-    {
+    if (cmd->is_protocol) {
         seq->ip.protocol = cmd->protocol;
     }
 
-    if (cmd->is_tos)
-    {
+    if (cmd->is_tos) {
         seq->ip.tos = cmd->tos;
     }
 
-    if (cmd->is_l3_csum)
-    {
+    if (cmd->is_l3_csum) {
         seq->ip.csum = cmd->l3_csum;
     }
 
-    if (cmd->is_udp_src_port)
-    {
+    if (cmd->is_udp_src_port) {
         seq->udp.src_port = cmd->udp_src_port;
     }
 
-    if (cmd->is_udp_dst_port)
-    {
+    if (cmd->is_udp_dst_port) {
         seq->udp.dst_port = cmd->udp_dst_port;
     }
 
-    if (cmd->is_tcp_cooked)
-    {
+    if (cmd->is_tcp_cooked) {
         seq->tcp.cooked = cmd->tcp_cooked;
     }
 
-    if (cmd->is_tcp_one_connection)
-    {
+    if (cmd->is_tcp_one_connection) {
         seq->tcp.one_connection = cmd->tcp_one_connection;
     }
 
-    if (cmd->is_tcp_src_port)
-    {
+    if (cmd->is_tcp_src_port) {
         seq->tcp.src_port = cmd->tcp_src_port;
     }
 
-    if (cmd->is_tcp_dst_port)
-    {
+    if (cmd->is_tcp_dst_port) {
         seq->tcp.dst_port = cmd->tcp_dst_port;
     }
 
-    if (cmd->is_tcp_syn)
-    {
+    if (cmd->is_tcp_syn) {
         seq->tcp.syn = cmd->tcp_syn;
     }
 
-    if (cmd->is_tcp_ack)
-    {
+    if (cmd->is_tcp_ack) {
         seq->tcp.ack = cmd->tcp_ack;
     }
 
-    if (cmd->is_tcp_psh)
-    {
+    if (cmd->is_tcp_psh) {
         seq->tcp.psh = cmd->tcp_psh;
     }
 
-    if (cmd->is_tcp_rst)
-    {
+    if (cmd->is_tcp_rst) {
         seq->tcp.rst = cmd->tcp_rst;
     }
 
-    if (cmd->is_tcp_fin)
-    {
+    if (cmd->is_tcp_fin) {
         seq->tcp.fin = cmd->tcp_fin;
     }
 
-    if (cmd->is_tcp_urg)
-    {
+    if (cmd->is_tcp_urg) {
         seq->tcp.urg = cmd->tcp_urg;
     }
 
-    if (cmd->is_tcp_ece)
-    {
+    if (cmd->is_tcp_ece) {
         seq->tcp.ece = cmd->tcp_ece;
     }
 
-    if (cmd->is_tcp_cwr)
-    {
+    if (cmd->is_tcp_cwr) {
         seq->tcp.cwr = cmd->tcp_cwr;
     }
 
-    if (cmd->is_icmp_code)
-    {
+    if (cmd->is_icmp_code) {
         seq->icmp.code = cmd->icmp_code;
     }
 
-    if (cmd->is_icmp_type)
-    {
+    if (cmd->is_icmp_type) {
         seq->icmp.type = cmd->icmp_type;
     }
 
-    if (cmd->is_pl_min_len || cmd->is_pl_max_len || cmd->is_pl_exact)
-    {
+    if (cmd->is_pl_min_len || cmd->is_pl_max_len || cmd->is_pl_exact) {
         seq->pl_cnt = 1;
 
         struct payload_opt *pl = &seq->pls[0];
 
-        if (cmd->is_pl_min_len)
-        {
+        if (cmd->is_pl_min_len) {
             pl->min_len = cmd->pl_min_len;
         }
 
-        if (cmd->is_pl_max_len)
-        {
+        if (cmd->is_pl_max_len) {
             pl->max_len = cmd->pl_max_len;
         }
 
-        if (cmd->is_pl_is_static)
-        {
+        if (cmd->is_pl_is_static) {
             pl->is_static = cmd->pl_is_static;
         }
 
-        if (cmd->pl_exact != NULL && cmd->is_pl_exact)
-        {
+        if (cmd->pl_exact != NULL && cmd->is_pl_exact) {
             pl->exact = cmd->pl_exact;
         }
 
-        if (cmd->is_pl_is_file)
-        {
+        if (cmd->is_pl_is_file) {
             pl->is_file = cmd->pl_is_file;
         }
 
-        if (cmd->is_pl_is_string)
-        {
+        if (cmd->is_pl_is_string) {
             pl->is_string = cmd->pl_is_string;
         }
     }
@@ -412,18 +382,16 @@ void cli__parse_seq_opts(cli_t *cmd, config_t *cfg)
  *
  * @param argc The argument counter passed in the `int main()` function.
  * @param argv The argument array pointer passed in the `int main()` function.
- * @param cmd A pointer to the `cli` structure that stores all command line values.
+ * @param cmd A pointer to the `cli` structure that stores all command line
+ * values.
  *
  * @return void
  **/
-void cli__parse(int argc, char **argv, cli_t *cmd)
-{
+void cli__parse(int argc, char **argv, cli_t *cmd) {
     int c;
 
-    while ((c = getopt_long(argc, argv, "c:zhvl", cli_opts, NULL)) != -1)
-    {
-        switch (c)
-        {
+    while ((c = getopt_long(argc, argv, "c:zhvl", cli_opts, NULL)) != -1) {
+        switch (c) {
         case 'c':
             cmd->config = optarg;
 
@@ -449,8 +417,7 @@ void cli__parse(int argc, char **argv, cli_t *cmd)
 
             break;
 
-        case 3:
-        {
+        case 3: {
             char *val = strdup(optarg);
             cmd->max_pckts = strtoull((const char *)val, (char **)val, 0);
 
@@ -459,8 +426,7 @@ void cli__parse(int argc, char **argv, cli_t *cmd)
             break;
         }
 
-        case 4:
-        {
+        case 4: {
             char *val = strdup(optarg);
             cmd->time = strtoull((const char *)val, (char **)val, 0);
 
@@ -469,8 +435,7 @@ void cli__parse(int argc, char **argv, cli_t *cmd)
             break;
         }
 
-        case 5:
-        {
+        case 5: {
             char *val = strdup(optarg);
             cmd->delay = strtoull((const char *)val, (char **)val, 0);
 
@@ -486,8 +451,7 @@ void cli__parse(int argc, char **argv, cli_t *cmd)
 
             break;
 
-        case 7:
-        {
+        case 7: {
             char *val = strdup(optarg);
             cmd->max_bytes = strtoull((const char *)val, (char **)val, 0);
 
@@ -741,8 +705,7 @@ void cli__parse(int argc, char **argv, cli_t *cmd)
 
             break;
 
-        case 43:
-        {
+        case 43: {
             char *val = strdup(optarg);
             cmd->pps = strtoull((const char *)val, (char **)val, 0);
 
@@ -751,8 +714,7 @@ void cli__parse(int argc, char **argv, cli_t *cmd)
             break;
         }
 
-        case 44:
-        {
+        case 44: {
             char *val = strdup(optarg);
             cmd->bps = strtoull((const char *)val, (char **)val, 0);
 

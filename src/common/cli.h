@@ -10,8 +10,7 @@
 #include <tech/af-xdp/cli.h>
 #endif
 
-typedef struct cli
-{
+typedef struct cli {
     const char *config;
     unsigned int list : 1;
     unsigned int verbose : 1;

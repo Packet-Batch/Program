@@ -1,10 +1,9 @@
 #pragma once
 
-#include <stdlib.h>
 #include <getopt.h>
+#include <stdlib.h>
 
-typedef struct cli_af_xdp
-{
+typedef struct cli_af_xdp {
     unsigned int queue_set : 1;
     int queue;
 

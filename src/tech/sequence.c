@@ -1,41 +1,41 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/sysinfo.h>
-#include <netinet/in.h>
-#include <net/if.h>
+#include <arpa/inet.h>
+#include <errno.h>
+#include <inttypes.h>
+#include <linux/icmp.h>
 #include <linux/if.h>
 #include <linux/if_ether.h>
+#include <linux/if_link.h>
+#include <linux/if_packet.h>
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
-#include <linux/icmp.h>
-#include <linux/if_packet.h>
-#include <arpa/inet.h>
-#include <sys/ioctl.h>
-#include <inttypes.h>
-#include <time.h>
+#include <net/if.h>
+#include <netinet/in.h>
 #include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <errno.h>
-#include <linux/if_link.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <sys/sysinfo.h>
+#include <sys/types.h>
+#include <time.h>
+#include <unistd.h>
 
-#include <helpers/int_types.h>
 #include <helpers/csum.h>
+#include <helpers/int_types.h>
 
-#include <common/utils.h>
-#include <common/config.h>
 #include <common/cli.h>
+#include <common/config.h>
+#include <common/utils.h>
 
 #ifdef VERY_RANDOM
 #include <sys/random.h>
 #endif
 
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <netdb.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 
 #include <tech/sequence.h>
 
@@ -71,18 +71,24 @@ u16 seq_cnt;
  *
  * @return Void
  */
-static inline void calc_l4_csum(struct iphdr *iph, struct tcphdr *tcph, struct udphdr *udph, struct icmphdr *icmph, u16 *l4_csum, int l4_len)
-{
-    switch (iph->protocol)
-    {
+static inline void calc_l4_csum(struct iphdr *iph, struct tcphdr *tcph,
+                                struct udphdr *udph, struct icmphdr *icmph,
+                                u16 *l4_csum, int l4_len) {
+    switch (iph->protocol) {
     case IPPROTO_TCP:
-        *l4_csum = csum_tcpudp_magic(iph->saddr, iph->daddr, l4_len, IPPROTO_TCP, csum_partial(tcph, l4_len, 0));
+        *l4_csum =
+            csum_tcpudp_magic(iph->saddr, iph->daddr, l4_len, IPPROTO_TCP,
+                              csum_partial(tcph, l4_len, 0));
         break;
     case IPPROTO_UDP:
-        *l4_csum = csum_tcpudp_magic(iph->saddr, iph->daddr, l4_len, IPPROTO_UDP, csum_partial(udph, l4_len, 0));
+        *l4_csum =
+            csum_tcpudp_magic(iph->saddr, iph->daddr, l4_len, IPPROTO_UDP,
+                              csum_partial(udph, l4_len, 0));
         break;
     case IPPROTO_ICMP:
-        *l4_csum = csum_tcpudp_magic(iph->saddr, iph->daddr, l4_len, IPPROTO_ICMP, csum_partial(icmph, l4_len, 0));
+        *l4_csum =
+            csum_tcpudp_magic(iph->saddr, iph->daddr, l4_len, IPPROTO_ICMP,
+                              csum_partial(icmph, l4_len, 0));
         break;
     }
 }
@@ -94,8 +100,7 @@ static inline void calc_l4_csum(struct iphdr *iph, struct tcphdr *tcph, struct u
  *
  * @return Void
  **/
-static void *sequence__thread_core(void *temp)
-{
+static void *sequence__thread_core(void *temp) {
     // Cast data as thread info.
     sequence__thread_ctx_t *ti = (sequence__thread_ctx_t *)temp;
 
@@ -106,25 +111,27 @@ static void *sequence__thread_core(void *temp)
     int sock_fd;
 
     // Create AF_XDP socket and check.
-    xsk_socket_info_t *xsk = tech_afxdp__sock_setup(ti->device, ti->id, ti->cmd.verbose);
+    xsk_socket_info_t *xsk =
+        tech_afxdp__sock_setup(ti->device, ti->id, ti->cmd.verbose);
 
-    if (xsk == NULL)
-    {
-        fprintf(stderr, "[%d] Error setting up AF_XDP socket on thread.\n", seq_num);
+    if (xsk == NULL) {
+        fprintf(stderr, "[%d] Error setting up AF_XDP socket on thread.\n",
+                seq_num);
 
         goto thread_exit;
     }
 
     sock_fd = tech_afxdp__sock_fd(xsk);
 
-    if (sock_fd < 0)
-    {
-        fprintf(stderr, "[%d] Error setting up AF_XDP socket on thread.\n", seq_num);
+    if (sock_fd < 0) {
+        fprintf(stderr, "[%d] Error setting up AF_XDP socket on thread.\n",
+                seq_num);
 
         goto thread_exit;
     }
 
-    // Let's parse some config values before creating the socket so we know what we're doing.
+    // Let's parse some config values before creating the socket so we know what
+    // we're doing.
     u8 protocol = IPPROTO_UDP;
     u8 src_mac[ETH_ALEN] = {0};
     u8 dst_mac[ETH_ALEN] = {0};
@@ -134,8 +141,7 @@ static void *sequence__thread_core(void *temp)
     u16 *pckt_len = calloc(MAX_PAYLOADS, sizeof(u16));
     char *buffer = malloc(MAX_PCKT_LEN);
 
-    if (!data_len || !pckt_len || !buffer)
-    {
+    if (!data_len || !pckt_len || !buffer) {
         fprintf(stderr, "[%d] Failed to allocate buffers\n", seq_num);
 
         if (data_len != NULL)
@@ -153,67 +159,78 @@ static void *sequence__thread_core(void *temp)
     // Payloads.
     u8 **payloads = malloc(MAX_PAYLOADS * sizeof(u8 *));
 
-    if (payloads != NULL)
-    {
-        for (int i = 0; i < MAX_PAYLOADS; i++)
-        {
+    if (payloads != NULL) {
+        for (int i = 0; i < MAX_PAYLOADS; i++) {
             payloads[i] = malloc(MAX_PCKT_LEN * sizeof(u8));
         }
-    }
-    else
-    {
-        fprintf(stderr, "[%d] Failed to intialize payloads array due to allocation error.\n", seq_num);
+    } else {
+        fprintf(stderr,
+                "[%d] Failed to intialize payloads array due to allocation "
+                "error.\n",
+                seq_num);
 
         goto thread_exit;
     }
 
-    // Let's first start off by checking if the source MAC address is set within the config.
-    if (ti->seq.eth.src_mac != NULL)
-    {
-        sscanf(ti->seq.eth.src_mac, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &src_mac[0], &src_mac[1], &src_mac[2], &src_mac[3], &src_mac[4], &src_mac[5]);
+    // Let's first start off by checking if the source MAC address is set within
+    // the config.
+    if (ti->seq.eth.src_mac != NULL) {
+        sscanf(ti->seq.eth.src_mac, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+               &src_mac[0], &src_mac[1], &src_mac[2], &src_mac[3], &src_mac[4],
+               &src_mac[5]);
     }
 
     // Now check the destination MAC address.
-    if (ti->seq.eth.dst_mac != NULL)
-    {
-        sscanf(ti->seq.eth.dst_mac, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &dst_mac[0], &dst_mac[1], &dst_mac[2], &dst_mac[3], &dst_mac[4], &dst_mac[5]);
+    if (ti->seq.eth.dst_mac != NULL) {
+        sscanf(ti->seq.eth.dst_mac, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+               &dst_mac[0], &dst_mac[1], &dst_mac[2], &dst_mac[3], &dst_mac[4],
+               &dst_mac[5]);
     }
 
     // Now match the protocol (we exclude UDP since that's default).
-    if (ti->seq.ip.protocol != NULL && !strcmp(utils__lower_str(ti->seq.ip.protocol), "tcp"))
-    {
+    if (ti->seq.ip.protocol != NULL &&
+        !strcmp(utils__lower_str(ti->seq.ip.protocol), "tcp")) {
         protocol = IPPROTO_TCP;
-    }
-    else if (ti->seq.ip.protocol != NULL && !strcmp(utils__lower_str(ti->seq.ip.protocol), "icmp"))
-    {
+    } else if (ti->seq.ip.protocol != NULL &&
+               !strcmp(utils__lower_str(ti->seq.ip.protocol), "icmp")) {
         protocol = IPPROTO_ICMP;
     }
 
-    // Check if source MAC address is set properly. If not, let's get the MAC address of the interface we're sending packets out of.
-    if (src_mac[0] == 0 && src_mac[1] == 0 && src_mac[2] == 0 && src_mac[3] == 0 && src_mac[4] == 0 && src_mac[5] == 0)
-    {
-        if (utils__get_src_mac_addr(ti->device, src_mac) != 0)
-        {
-            fprintf(stdout, "[%d] WARNING - Failed to retrieve MAC address for %s.\n", seq_num, ti->device);
+    // Check if source MAC address is set properly. If not, let's get the MAC
+    // address of the interface we're sending packets out of.
+    if (src_mac[0] == 0 && src_mac[1] == 0 && src_mac[2] == 0 &&
+        src_mac[3] == 0 && src_mac[4] == 0 && src_mac[5] == 0) {
+        if (utils__get_src_mac_addr(ti->device, src_mac) != 0) {
+            fprintf(stdout,
+                    "[%d] WARNING - Failed to retrieve MAC address for %s.\n",
+                    seq_num, ti->device);
         }
 
-        if (src_mac[0] == 0 && src_mac[1] == 0 && src_mac[2] == 0 && src_mac[3] == 0 && src_mac[4] == 0 && src_mac[5] == 0)
-        {
-            fprintf(stdout, "[%d] WARNING - Source MAC address retrieved is 00:00:00:00:00:00.\n", seq_num);
+        if (src_mac[0] == 0 && src_mac[1] == 0 && src_mac[2] == 0 &&
+            src_mac[3] == 0 && src_mac[4] == 0 && src_mac[5] == 0) {
+            fprintf(stdout,
+                    "[%d] WARNING - Source MAC address retrieved is "
+                    "00:00:00:00:00:00.\n",
+                    seq_num);
         }
     }
 
-    // Check if destination MAC is set and if not, get the default gateway's MAC address.
-    if (dst_mac[0] == 0 && dst_mac[1] == 0 && dst_mac[2] == 0 && dst_mac[3] == 0 && dst_mac[4] == 0 && dst_mac[5] == 0)
-    {
+    // Check if destination MAC is set and if not, get the default gateway's MAC
+    // address.
+    if (dst_mac[0] == 0 && dst_mac[1] == 0 && dst_mac[2] == 0 &&
+        dst_mac[3] == 0 && dst_mac[4] == 0 && dst_mac[5] == 0) {
         // Retrieve the default gateway's MAC address and store it in dst_mac.
         utils__get_gw_mac((u8 *)&dst_mac);
     }
 
-    if (ti->cmd.verbose)
-    {
-        printf("[%d] Source MAC address => %hhx:%hhx:%hhx:%hhx:%hhx:%hhx.\n", seq_num, src_mac[0], src_mac[1], src_mac[2], src_mac[3], src_mac[4], src_mac[5]);
-        printf("[%d] Destination MAC address => %hhx:%hhx:%hhx:%hhx:%hhx:%hhx.\n", seq_num, dst_mac[0], dst_mac[1], dst_mac[2], dst_mac[3], dst_mac[4], dst_mac[5]);
+    if (ti->cmd.verbose) {
+        printf("[%d] Source MAC address => %hhx:%hhx:%hhx:%hhx:%hhx:%hhx.\n",
+               seq_num, src_mac[0], src_mac[1], src_mac[2], src_mac[3],
+               src_mac[4], src_mac[5]);
+        printf(
+            "[%d] Destination MAC address => %hhx:%hhx:%hhx:%hhx:%hhx:%hhx.\n",
+            seq_num, dst_mac[0], dst_mac[1], dst_mac[2], dst_mac[3], dst_mac[4],
+            dst_mac[5]);
     }
 
     // Create rand_r() seed.
@@ -231,7 +248,8 @@ static void *sequence__thread_core(void *temp)
     // Initialize IP header.
     struct iphdr *iph = (struct iphdr *)(buffer + sizeof(struct ethhdr));
 
-    // Initialize UDP, TCP, and ICMP headers. Declare them as NULL until we know what protocol we're dealing with.
+    // Initialize UDP, TCP, and ICMP headers. Declare them as NULL until we know
+    // what protocol we're dealing with.
     struct udphdr *udph = NULL;
     struct tcphdr *tcph = NULL;
     struct icmphdr *icmph = NULL;
@@ -249,14 +267,12 @@ static void *sequence__thread_core(void *temp)
     iph->tos = ti->seq.ip.tos;
 
     // Check for static TTL.
-    if (ti->seq.ip.min_ttl == ti->seq.ip.max_ttl)
-    {
+    if (ti->seq.ip.min_ttl == ti->seq.ip.max_ttl) {
         iph->ttl = ti->seq.ip.max_ttl;
     }
 
     // Check for static ID.
-    if (ti->seq.ip.min_id == ti->seq.ip.max_id)
-    {
+    if (ti->seq.ip.min_id == ti->seq.ip.max_id) {
         iph->id = htons(ti->seq.ip.max_id);
     }
 
@@ -264,39 +280,36 @@ static void *sequence__thread_core(void *temp)
     iph->daddr = ti->dst_ip;
 
     // Handle layer-4 header (UDP, TCP, or ICMP).
-    switch (protocol)
-    {
+    switch (protocol) {
     case IPPROTO_UDP:
-        udph = (struct udphdr *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4));
+        udph =
+            (struct udphdr *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4));
         l4_len = sizeof(struct udphdr);
 
         // Check for static source/destination ports.
-        if (ti->seq.udp.src_port > 0)
-        {
+        if (ti->seq.udp.src_port > 0) {
             udph->source = htons(ti->seq.udp.src_port);
         }
 
-        if (ti->seq.udp.dst_port > 0)
-        {
+        if (ti->seq.udp.dst_port > 0) {
             udph->dest = htons(ti->seq.udp.dst_port);
         }
 
         break;
 
     case IPPROTO_TCP:
-        tcph = (struct tcphdr *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4));
+        tcph =
+            (struct tcphdr *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4));
 
         tcph->doff = 5;
         l4_len = (tcph->doff * 4);
 
         // Check for static source/destination ports.
-        if (ti->seq.tcp.src_port > 0)
-        {
+        if (ti->seq.tcp.src_port > 0) {
             tcph->source = htons(ti->seq.tcp.src_port);
         }
 
-        if (ti->seq.tcp.dst_port > 0)
-        {
+        if (ti->seq.tcp.dst_port > 0) {
             tcph->dest = htons(ti->seq.tcp.dst_port);
         }
 
@@ -313,7 +326,8 @@ static void *sequence__thread_core(void *temp)
         break;
 
     case IPPROTO_ICMP:
-        icmph = (struct icmphdr *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4));
+        icmph =
+            (struct icmphdr *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4));
         l4_len = sizeof(struct icmphdr);
 
         // Set code and type.
@@ -324,30 +338,31 @@ static void *sequence__thread_core(void *temp)
     }
 
     // Initialize payload data.
-    unsigned char *data = (unsigned char *)(buffer + sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len);
+    unsigned char *data = (unsigned char *)(buffer + sizeof(struct ethhdr) +
+                                            (iph->ihl * 4) + l4_len);
 
     // Perform payload checks.
-    for (int i = 0; i < ti->seq.pl_cnt; i++)
-    {
+    for (int i = 0; i < ti->seq.pl_cnt; i++) {
         payload_opt_t *pl = &ti->seq.pls[i];
         u8 *pl_buff = payloads[i];
 
-        if (pl->exact != NULL)
-        {
+        if (pl->exact != NULL) {
             pl->is_static = 1;
 
             char *pl_str = NULL;
 
             // Check if payload is file.
-            if (pl->is_file)
-            {
+            if (pl->is_file) {
                 FILE *fp = fopen(pl->exact, "rb");
                 u64 len = 0;
 
-                // Check if our file is invalid. If so, print error and set empty payload string.
-                if (fp == NULL)
-                {
-                    fprintf(stderr, "[%d][%d] Unable to open payload file on payload (%s) :: %s.\n", seq_num, i, pl->exact, strerror(errno));
+                // Check if our file is invalid. If so, print error and set
+                // empty payload string.
+                if (fp == NULL) {
+                    fprintf(stderr,
+                            "[%d][%d] Unable to open payload file on payload "
+                            "(%s) :: %s.\n",
+                            seq_num, i, pl->exact, strerror(errno));
 
                     pl_str = malloc(sizeof(char) * 2);
                     strcpy(pl_str, "");
@@ -362,35 +377,28 @@ static void *sequence__thread_core(void *temp)
 
                 pl_str = malloc(len);
 
-                if (pl_str)
-                {
+                if (pl_str) {
                     fread(pl_str, 1, len, fp);
                 }
 
                 fclose(fp);
-            }
-            else
-            {
+            } else {
                 pl_str = strdup(pl->exact);
             }
 
         skippayload:;
 
             // Check if we want to parse the actual string.
-            if (pl->is_string)
-            {
+            if (pl->is_string) {
                 data_len[i] = strlen(pl_str);
 
                 memcpy(pl_buff, pl_str, data_len[i]);
-            }
-            else
-            {
+            } else {
                 // Split argument by space.
                 char *split;
                 char *rest = pl_str;
 
-                while ((split = strtok_r(rest, " ", &rest)))
-                {
+                while ((split = strtok_r(rest, " ", &rest))) {
                     sscanf(split, "%2hhx", &pl_buff[data_len[i]]);
 
                     data_len[i]++;
@@ -398,27 +406,23 @@ static void *sequence__thread_core(void *temp)
             }
 
             // Set packet length now.
-            pckt_len[i] = sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len + data_len[i];
+            pckt_len[i] =
+                sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len + data_len[i];
 
             free(pl_str);
-        }
-        else if (pl->is_static)
-        {
+        } else if (pl->is_static) {
             // Generate random payload between a range if needed.
-            if (pl->max_len > 0)
-            {
+            if (pl->max_len > 0) {
                 // Calculate a random length
                 data_len[i] = utils__rand_num(pl->min_len, pl->max_len, seed);
-                pckt_len[i] = sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len + data_len[i];
+                pckt_len[i] = sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len +
+                              data_len[i];
 
                 // Fill out payload with random characters.
-                for (u16 i = 0; i < data_len[i]; i++)
-                {
+                for (u16 i = 0; i < data_len[i]; i++) {
                     *(pl_buff + i) = rand_r(&seed);
                 }
-            }
-            else
-            {
+            } else {
                 // 0 bytes of payload.
                 data_len[i] = 0;
                 pckt_len[i] = sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len;
@@ -427,8 +431,7 @@ static void *sequence__thread_core(void *temp)
     }
 
     // If we have no payloads, set to an empty payload.
-    if (ti->seq.pl_cnt < 1)
-    {
+    if (ti->seq.pl_cnt < 1) {
         ti->seq.pl_cnt = 1;
 
         payload_opt_t *pl = &ti->seq.pls[0];
@@ -458,18 +461,18 @@ static void *sequence__thread_core(void *temp)
     int pkts_cnt = 0;
 
 #ifdef SEQUENCE_MAX_PERFORMANCE
-    printf("[%d] Running in maximum performance mode (empty packets)...\n", seq_num);
+    printf("[%d] Running in maximum performance mode (empty packets)...\n",
+           seq_num);
 
     // If we're trying to achieve maximum performance, stuff the packets now.
     int pkt_len = sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len;
 
-    if (ti->seq.l4_csum)
-    {
-        // If we're calculating the L4 checksum, we need to calculate it now to save CPU cycles.
+    if (ti->seq.l4_csum) {
+        // If we're calculating the L4 checksum, we need to calculate it now to
+        // save CPU cycles.
         u16 *l4_csum;
 
-        switch (iph->protocol)
-        {
+        switch (iph->protocol) {
         case IPPROTO_UDP:
             udph->len = htons(sizeof(struct udphdr));
 
@@ -497,40 +500,34 @@ static void *sequence__thread_core(void *temp)
     if (ti->seq.ip.csum)
         update_iph_checksum(iph);
 
-    for (int i = 0; i < ti->batch_size; i++)
-    {
+    for (int i = 0; i < ti->batch_size; i++) {
         memcpy(pkts + (i * MAX_PCKT_LEN), buffer, pkt_len);
         pkts_len[i] = pkt_len;
     }
 #else
 #ifdef SEQUENCE_USE_STATIC_PKT
-    // We can try to optimize sequences that are trying to send as many PPS as possible by only sending one static packet.
-    int is_one_pckt = ti->seq.ip.src_ip != NULL &&
-                      ti->seq.pl_cnt == 1 &&
-                      ti->seq.pls[0].is_static == 1 &&
-                      ti->seq.pps < 1 &&
+    // We can try to optimize sequences that are trying to send as many PPS as
+    // possible by only sending one static packet.
+    int is_one_pckt = ti->seq.ip.src_ip != NULL && ti->seq.pl_cnt == 1 &&
+                      ti->seq.pls[0].is_static == 1 && ti->seq.pps < 1 &&
                       ti->seq.bps < 1 &&
-                      ((protocol == IPPROTO_UDP &&
-                        ti->seq.udp.src_port > 0 &&
+                      ((protocol == IPPROTO_UDP && ti->seq.udp.src_port > 0 &&
                         ti->seq.udp.dst_port > 0) ||
-                       (protocol == IPPROTO_TCP &&
-                        ti->seq.tcp.src_port > 0 &&
+                       (protocol == IPPROTO_TCP && ti->seq.tcp.src_port > 0 &&
                         ti->seq.tcp.dst_port > 0)) &&
                       ti->seq.ip.min_id == ti->seq.ip.max_id &&
                       ti->seq.ip.min_ttl == ti->seq.ip.max_ttl;
 
     // If we're using one packet, stuff buffers now.
-    if (is_one_pckt)
-    {
+    if (is_one_pckt) {
         printf("[%d] Using one packet for best performance...\n", seq_num);
 
-        if (ti->seq.l4_csum)
-        {
-            // If we're calculating the L4 checksum, we need to calculate it now to save CPU cycles.
+        if (ti->seq.l4_csum) {
+            // If we're calculating the L4 checksum, we need to calculate it now
+            // to save CPU cycles.
             u16 *l4_csum;
 
-            switch (iph->protocol)
-            {
+            switch (iph->protocol) {
             case IPPROTO_UDP:
                 udph->len = htons(sizeof(struct udphdr) + data_len[0]);
 
@@ -552,8 +549,8 @@ static void *sequence__thread_core(void *temp)
             calc_l4_csum(iph, tcph, udph, icmph, l4_csum, l4_len);
         }
 
-        // We need to calculate the IP header length before calculating the checksum.
-        // Remember to store it in network byte order (NBO).
+        // We need to calculate the IP header length before calculating the
+        // checksum. Remember to store it in network byte order (NBO).
         iph->tot_len = htons((iph->ihl * 4) + l4_len + data_len[0]);
 
         // Update the IP header checksum if we should.
@@ -563,8 +560,7 @@ static void *sequence__thread_core(void *temp)
         // Stuff packets buffer and lengths now to save CPU resources later on.
         int pkt_len = pckt_len[0];
 
-        for (int i = 0; i < ti->batch_size; i++)
-        {
+        for (int i = 0; i < ti->batch_size; i++) {
             memcpy(pkts + (i * MAX_PCKT_LEN), buffer, pkt_len);
             pkts_len[i] = pkt_len;
         }
@@ -573,61 +569,60 @@ static void *sequence__thread_core(void *temp)
 #endif
 
     // Loop.
-    while (1)
-    {
+    while (1) {
 #ifdef SEQUENCE_MAX_PERFORMANCE
-        // For max performance, we just want to send as many as we can without doing any of the annoying checks.
+        // For max performance, we just want to send as many as we can without
+        // doing any of the annoying checks.
         int ret;
 
-        if ((ret = tech_afxdp__send_pkts(xsk, pkts, pkts_len, ti->batch_size)) < 0)
-        {
-            fprintf(stderr, "[%d] ERROR - Failed to send packet batch on AF_XDP socket :: %s.\n", seq_num, strerror(errno));
+        if ((ret = tech_afxdp__send_pkts(xsk, pkts, pkts_len, ti->batch_size)) <
+            0) {
+            fprintf(stderr,
+                    "[%d] ERROR - Failed to send packet batch on AF_XDP socket "
+                    ":: %s.\n",
+                    seq_num, strerror(errno));
         }
 #else
 #ifdef SEQUENCE_USE_STATIC_PKT
-        if (!is_one_pckt)
-        {
+        if (!is_one_pckt) {
 #endif
             // Handle per-second rate limits.
             // Note - We don't appear to need mutexes and locks? Not sure why -
-            // Since we're accessing global/shared variables between multiple threads.
-            if (ti->seq.pps > 0 || ti->seq.bps > 0)
-            {
-                // Retrieve current time in seconds and compare against last updated.
+            // Since we're accessing global/shared variables between multiple
+            // threads.
+            if (ti->seq.pps > 0 || ti->seq.bps > 0) {
+                // Retrieve current time in seconds and compare against last
+                // updated.
                 time_t new_time = time(NULL);
                 time_t expected = last_updated[ti->seq_cnt];
 
-                if (expected != new_time)
-                {
+                if (expected != new_time) {
                     // Set new time.
-                    if (__sync_bool_compare_and_swap(&last_updated[ti->seq_cnt], expected, new_time))
-                    {
+                    if (__sync_bool_compare_and_swap(&last_updated[ti->seq_cnt],
+                                                     expected, new_time)) {
 
                         // Reset per second counters to 0 if enabled.
-                        if (ti->seq.pps > 0)
-                        {
+                        if (ti->seq.pps > 0) {
                             __sync_lock_test_and_set(&cur_pps[ti->seq_cnt], 0);
                         }
 
-                        if (ti->seq.bps > 0)
-                        {
+                        if (ti->seq.bps > 0) {
                             __sync_lock_test_and_set(&cur_bps[ti->seq_cnt], 0);
                         }
                     }
-                }
-                else
-                {
+                } else {
                     // Check if we exceed rate limits if enabled.
-                    // If we exceed, sleep for one micro-second to prevent pegging the CPU at 100%.
-                    if (ti->seq.pps > 0 && cur_pps[ti->seq_cnt] >= ti->seq.pps)
-                    {
+                    // If we exceed, sleep for one micro-second to prevent
+                    // pegging the CPU at 100%.
+                    if (ti->seq.pps > 0 &&
+                        cur_pps[ti->seq_cnt] >= ti->seq.pps) {
                         usleep(1);
 
                         continue;
                     }
 
-                    if (ti->seq.bps > 0 && cur_bps[ti->seq_cnt] >= ti->seq.bps)
-                    {
+                    if (ti->seq.bps > 0 &&
+                        cur_bps[ti->seq_cnt] >= ti->seq.bps) {
                         usleep(1);
 
                         continue;
@@ -645,51 +640,52 @@ static void *sequence__thread_core(void *temp)
         seed = ts.tv_nsec;
 #endif
             // Check if we need to generate random IP TTL.
-            if (ti->seq.ip.min_ttl != ti->seq.ip.max_ttl)
-            {
-                iph->ttl = utils__rand_num(ti->seq.ip.min_ttl, ti->seq.ip.max_ttl, seed);
+            if (ti->seq.ip.min_ttl != ti->seq.ip.max_ttl) {
+                iph->ttl = utils__rand_num(ti->seq.ip.min_ttl,
+                                           ti->seq.ip.max_ttl, seed);
             }
 
             // Check if we need to generate random IP ID.
-            if (ti->seq.ip.min_id != ti->seq.ip.max_id)
-            {
-                iph->id = htons(utils__rand_num(ti->seq.ip.min_id, ti->seq.ip.max_id, seed));
+            if (ti->seq.ip.min_id != ti->seq.ip.max_id) {
+                iph->id = htons(utils__rand_num(ti->seq.ip.min_id,
+                                                ti->seq.ip.max_id, seed));
             }
 
-            // Check if source IP is defined. If not, get a random IP from the ranges and assign it to the IP header's source IP.
-            if (ti->seq.ip.src_ip == NULL)
-            {
+            // Check if source IP is defined. If not, get a random IP from the
+            // ranges and assign it to the IP header's source IP.
+            if (ti->seq.ip.src_ip == NULL) {
                 // Check if there are ranges.
-                if (ti->seq.ip.range_count > 0)
-                {
-                    u16 ran = utils__rand_num(0, (ti->seq.ip.range_count - 1), seed);
+                if (ti->seq.ip.range_count > 0) {
+                    u16 ran =
+                        utils__rand_num(0, (ti->seq.ip.range_count - 1), seed);
 
                     // Ensure this range is valid.
-                    if (ti->seq.ip.ranges[ran] != NULL)
-                    {
-                        char *randip = utils__rand_ip(ti->seq.ip.ranges[ran], seed);
+                    if (ti->seq.ip.ranges[ran] != NULL) {
+                        char *randip =
+                            utils__rand_ip(ti->seq.ip.ranges[ran], seed);
 
-                        if (randip != NULL)
-                        {
+                        if (randip != NULL) {
                             strcpy(s_ip, randip);
-                        }
-                        else
-                        {
+                        } else {
                             goto fail;
                         }
-                    }
-                    else
-                    {
+                    } else {
                     fail:
-                        fprintf(stderr, "[%d] ERROR - Source range count is above 0, but string is NULL. Please report this! Using localhost...\n", seq_num);
+                        fprintf(stderr,
+                                "[%d] ERROR - Source range count is above 0, "
+                                "but string is NULL. Please report this! Using "
+                                "localhost...\n",
+                                seq_num);
 
                         strcpy(s_ip, "127.0.0.1");
                     }
-                }
-                else
-                {
-                    // This shouldn't happen, but since it did, just assign localhost and warn the user.
-                    fprintf(stdout, "[%d] WARNING - No source IP or source range(s) specified. Using localhost...\n", seq_num);
+                } else {
+                    // This shouldn't happen, but since it did, just assign
+                    // localhost and warn the user.
+                    fprintf(stdout,
+                            "[%d] WARNING - No source IP or source range(s) "
+                            "specified. Using localhost...\n",
+                            seq_num);
 
                     strcpy(s_ip, "127.0.0.1");
                 }
@@ -701,32 +697,26 @@ static void *sequence__thread_core(void *temp)
                 iph->saddr = s_addr.s_addr;
             }
 
-            // Check layer-4 protocols and assign random characteristics if need to be.
-            if (protocol == IPPROTO_UDP)
-            {
+            // Check layer-4 protocols and assign random characteristics if need
+            // to be.
+            if (protocol == IPPROTO_UDP) {
                 // Check for random UDP source port.
-                if (ti->seq.udp.src_port == 0)
-                {
+                if (ti->seq.udp.src_port == 0) {
                     udph->source = htons(utils__rand_num(1, 65535, seed));
                 }
 
                 // Check for random UDP destination port.
-                if (ti->seq.udp.dst_port == 0)
-                {
+                if (ti->seq.udp.dst_port == 0) {
                     udph->dest = htons(utils__rand_num(1, 65535, seed));
                 }
-            }
-            else if (protocol == IPPROTO_TCP)
-            {
+            } else if (protocol == IPPROTO_TCP) {
                 // Check for random TCP source port.
-                if (ti->seq.tcp.src_port == 0)
-                {
+                if (ti->seq.tcp.src_port == 0) {
                     tcph->source = htons(utils__rand_num(1, 65535, seed));
                 }
 
                 // Check for random TCP destination port.
-                if (ti->seq.tcp.dst_port == 0)
-                {
+                if (ti->seq.tcp.dst_port == 0) {
                     tcph->dest = htons(utils__rand_num(1, 65535, seed));
                 }
             }
@@ -734,54 +724,48 @@ static void *sequence__thread_core(void *temp)
         }
 #endif
 
-        // Intiailize counter holders now and increment so we aren't incrementing as much.
+        // Intiailize counter holders now and increment so we aren't
+        // incrementing as much.
         int pkt_iter = 0;
         u64 byt_iter = 0;
 
         // Loop through each payload.
-        for (int i = 0; i < ti->seq.pl_cnt; i++)
-        {
+        for (int i = 0; i < ti->seq.pl_cnt; i++) {
 #ifdef SEQUENCE_USE_STATIC_PKT
-            if (!is_one_pckt)
-            {
+            if (!is_one_pckt) {
 #endif
                 // Retrieve payload at index.
                 payload_opt_t *pl = &ti->seq.pls[i];
 
                 // Check if we need to calculate random payload.
-                if (pl->is_static)
-                {
-                    // We only need to copy the payload if there are multiple payloads.
-                    if (ti->seq.pl_cnt > 1 && data_len[i] > 0)
-                    {
+                if (pl->is_static) {
+                    // We only need to copy the payload if there are multiple
+                    // payloads.
+                    if (ti->seq.pl_cnt > 1 && data_len[i] > 0) {
                         memcpy(data, payloads[i], data_len[i]);
                     }
-                }
-                else
-                {
-                    if (pl->max_len > 0)
-                    {
+                } else {
+                    if (pl->max_len > 0) {
                         // Recalculate length to random.
-                        data_len[i] = utils__rand_num(pl->min_len, pl->max_len, seed);
-                        pckt_len[i] = sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len + data_len[i];
+                        data_len[i] =
+                            utils__rand_num(pl->min_len, pl->max_len, seed);
+                        pckt_len[i] = sizeof(struct ethhdr) + (iph->ihl * 4) +
+                                      l4_len + data_len[i];
 
                         // Fill out payload with random characters.
-                        for (u16 i = 0; i < data_len[i]; i++)
-                        {
+                        for (u16 i = 0; i < data_len[i]; i++) {
                             *(data + i) = rand_r(&seed);
                         }
-                    }
-                    else if (pckt_len[i] < 1)
-                    {
-                        pckt_len[i] = sizeof(struct ethhdr) + (iph->ihl * 4) + l4_len + data_len[i];
+                    } else if (pckt_len[i] < 1) {
+                        pckt_len[i] = sizeof(struct ethhdr) + (iph->ihl * 4) +
+                                      l4_len + data_len[i];
                     }
                 }
 
                 // Perform checksum and length calculations for layer-4 headers.
                 u16 *l4_csum;
 
-                switch (protocol)
-                {
+                switch (protocol) {
                 case IPPROTO_TCP:
                     l4_csum = &tcph->check;
                     break;
@@ -803,17 +787,16 @@ static void *sequence__thread_core(void *temp)
                 // Calculate IP header total length and checksum if necessary.
                 iph->tot_len = htons((iph->ihl * 4) + l4_len + data_len[i]);
 
-                if (ti->seq.ip.csum)
-                {
+                if (ti->seq.ip.csum) {
                     update_iph_checksum(iph);
                 }
 #ifdef SEQUENCE_USE_STATIC_PKT
             }
 #endif
 
-            // If the current packet cursor is less than the batch size, add it to the batch.
-            if (pkts_cnt < ti->batch_size)
-            {
+            // If the current packet cursor is less than the batch size, add it
+            // to the batch.
+            if (pkts_cnt < ti->batch_size) {
                 memcpy(pkts + (pkts_cnt * MAX_PCKT_LEN), buffer, pckt_len[i]);
 
                 pkts_len[pkts_cnt] = pckt_len[i];
@@ -826,87 +809,90 @@ static void *sequence__thread_core(void *temp)
             // Send packet out.
             int ret;
 
-            // We need to send the packets in a batch if we exceed the batch size.
-            if (pkts_cnt >= ti->batch_size)
-            {
-                if ((ret = tech_afxdp__send_pkts(xsk, pkts, pkts_len, pkts_cnt)) < 0)
-                {
-                    fprintf(stderr, "[%d] ERROR - Failed to send packet batch on AF_XDP socket :: %s.\n", seq_num, strerror(errno));
+            // We need to send the packets in a batch if we exceed the batch
+            // size.
+            if (pkts_cnt >= ti->batch_size) {
+                if ((ret = tech_afxdp__send_pkts(xsk, pkts, pkts_len,
+                                                 pkts_cnt)) < 0) {
+                    fprintf(stderr,
+                            "[%d] ERROR - Failed to send packet batch on "
+                            "AF_XDP socket :: %s.\n",
+                            seq_num, strerror(errno));
                 }
 
                 pkts_cnt = 0;
             }
 
             // Check if we want to send verbose output or not.
-            if (ti->cmd.verbose)
-            {
+            if (ti->cmd.verbose) {
                 // Retrieve source and destination ports for UDP/TCP protocols.
                 u16 srcport = 0;
                 u16 dstport = 0;
 
-                if (protocol == IPPROTO_UDP)
-                {
+                if (protocol == IPPROTO_UDP) {
                     srcport = ntohs(udph->source);
                     dstport = ntohs(udph->dest);
-                }
-                else if (protocol == IPPROTO_TCP)
-                {
+                } else if (protocol == IPPROTO_TCP) {
                     srcport = ntohs(tcph->source);
                     dstport = ntohs(tcph->dest);
                 }
 
-                fprintf(stdout, "[%d][%d] Sent %d bytes of data from %s:%d to %s:%d (batch sz => %d).\n", seq_num, i + 1, pckt_len[i], (ti->seq.ip.src_ip != NULL) ? ti->seq.ip.src_ip : s_ip, srcport, ti->seq.ip.dst_ip, dstport, ti->batch_size);
+                fprintf(stdout,
+                        "[%d][%d] Sent %d bytes of data from %s:%d to %s:%d "
+                        "(batch sz => %d).\n",
+                        seq_num, i + 1, pckt_len[i],
+                        (ti->seq.ip.src_ip != NULL) ? ti->seq.ip.src_ip : s_ip,
+                        srcport, ti->seq.ip.dst_ip, dstport, ti->batch_size);
             }
 
             // Check for delay.
-            if (ti->seq.delay > 0)
-            {
+            if (ti->seq.delay > 0) {
                 usleep(ti->seq.delay);
             }
         }
 
         // Increment total packets and bytes if needed.
-        if (ti->seq.max_pckts > 0 || ti->seq.track)
-        {
+        if (ti->seq.max_pckts > 0 || ti->seq.track) {
             __sync_add_and_fetch(&total_pckts[ti->seq_cnt], pkt_iter);
         }
 
-        if (ti->seq.max_bytes > 0 || ti->seq.track)
-        {
+        if (ti->seq.max_bytes > 0 || ti->seq.track) {
             __sync_add_and_fetch(&total_bytes[ti->seq_cnt], byt_iter);
         }
 
         // Increment per-second packets and bytes if needed.
-        if (ti->seq.pps > 0)
-        {
+        if (ti->seq.pps > 0) {
             __sync_add_and_fetch(&cur_pps[ti->seq_cnt], pkt_iter);
         }
 
-        if (ti->seq.bps > 0)
-        {
+        if (ti->seq.bps > 0) {
             __sync_add_and_fetch(&cur_bps[ti->seq_cnt], byt_iter);
         }
 
         // Check total packet count.
-        if (ti->seq.max_pckts > 0 && total_pckts[ti->seq_cnt] >= ti->seq.max_pckts)
-        {
-            fprintf(stdout, "[%d] Max packets exceeded for sequence. Stopping...\n", seq_num);
+        if (ti->seq.max_pckts > 0 &&
+            total_pckts[ti->seq_cnt] >= ti->seq.max_pckts) {
+            fprintf(stdout,
+                    "[%d] Max packets exceeded for sequence. Stopping...\n",
+                    seq_num);
 
             break;
         }
 
         // Check total bytes count.
-        if (ti->seq.max_bytes > 0 && total_bytes[ti->seq_cnt] >= ti->seq.max_bytes)
-        {
-            fprintf(stdout, "[%d] Max bytes exceeded for sequence. Stopping...\n", seq_num);
+        if (ti->seq.max_bytes > 0 &&
+            total_bytes[ti->seq_cnt] >= ti->seq.max_bytes) {
+            fprintf(stdout,
+                    "[%d] Max bytes exceeded for sequence. Stopping...\n",
+                    seq_num);
 
             break;
         }
 
         // Check time.
-        if (ti->seq.time > 0 && time(NULL) >= to_end)
-        {
-            fprintf(stdout, "[%d] Time exceeded for sequence. Stopping...\n", seq_num);
+        if (ti->seq.time > 0 && time(NULL) >= to_end) {
+            fprintf(stdout, "[%d] Time exceeded for sequence. Stopping...\n",
+                    seq_num);
 
             break;
         }
@@ -940,8 +926,7 @@ thread_exit:
     // Cleanup AF_XDP socket.
     tech_afxdp__sock_cleanup(xsk);
 
-    if (sock_fd > -1)
-    {
+    if (sock_fd > -1) {
         close(sock_fd);
     }
 
@@ -952,27 +937,32 @@ thread_exit:
  * Starts and executes a sequence.
  *
  * @param interface The networking interface to send packets out of.
- * @param seq A singular sequence structure containing relevant information for the packet.
+ * @param seq A singular sequence structure containing relevant information for
+ * the packet.
  * @param seq_cnt2 The sequence counter from the main program.
  * @param cmd The command line structure.
  * @param batch_size The batch size for sending packets.
  *
  * @return Void
  **/
-void sequence__start(const char *interface, sequence_t seq, u16 seq_cnt2, cli_t cmd, int batch_size)
-{
+void sequence__start(const char *interface, sequence_t seq, u16 seq_cnt2,
+                     cli_t cmd, int batch_size) {
     // First, make sure interface isn't NULL.
-    if (interface == NULL)
-    {
-        fprintf(stderr, "Interface not set on sequence #%d. Not moving forward with this sequence.\n", seq_cnt2);
+    if (interface == NULL) {
+        fprintf(stderr,
+                "Interface not set on sequence #%d. Not moving forward with "
+                "this sequence.\n",
+                seq_cnt2);
 
         return;
     }
 
     // Let's check if the destination IP is set.
-    if (seq.ip.dst_ip == NULL)
-    {
-        fprintf(stderr, "Destination IP not set on sequence #%d. Not moving forward with this sequence.\n", seq_cnt2);
+    if (seq.ip.dst_ip == NULL) {
+        fprintf(stderr,
+                "Destination IP not set on sequence #%d. Not moving forward "
+                "with this sequence.\n",
+                seq_cnt2);
 
         return;
     }
@@ -980,9 +970,9 @@ void sequence__start(const char *interface, sequence_t seq, u16 seq_cnt2, cli_t 
     // Check for static source IP.
     u32 src_ip = 0;
 
-    if (seq.ip.src_ip != NULL)
-    {
-        // Create hints structure for getaddrinfo() to hint for correct hostname.
+    if (seq.ip.src_ip != NULL) {
+        // Create hints structure for getaddrinfo() to hint for correct
+        // hostname.
         struct addrinfo hints = {0};
 
         hints.ai_family = AF_INET;
@@ -991,20 +981,20 @@ void sequence__start(const char *interface, sequence_t seq, u16 seq_cnt2, cli_t 
 
         struct addrinfo *res, *rp;
 
-        if (getaddrinfo(seq.ip.src_ip, NULL, &hints, &res) != 0)
-        {
-            fprintf(stderr, "ERROR - Could not resolve source IP address (%s) :: %s.\n", seq.ip.src_ip, strerror(errno));
+        if (getaddrinfo(seq.ip.src_ip, NULL, &hints, &res) != 0) {
+            fprintf(stderr,
+                    "ERROR - Could not resolve source IP address (%s) :: %s.\n",
+                    seq.ip.src_ip, strerror(errno));
 
             return;
         }
 
         u32 ip = 0;
 
-        for (rp = res; rp != NULL; rp = rp->ai_next)
-        {
-            // Return first AF_INET address found since that should indicate first IPv4 address.
-            if (rp->ai_family == AF_INET)
-            {
+        for (rp = res; rp != NULL; rp = rp->ai_next) {
+            // Return first AF_INET address found since that should indicate
+            // first IPv4 address.
+            if (rp->ai_family == AF_INET) {
                 ip = ((struct sockaddr_in *)rp->ai_addr)->sin_addr.s_addr;
 
                 break;
@@ -1027,17 +1017,17 @@ void sequence__start(const char *interface, sequence_t seq, u16 seq_cnt2, cli_t 
 
     struct addrinfo *res, *rp;
 
-    if (getaddrinfo(seq.ip.dst_ip, NULL, &hints, &res) != 0)
-    {
-        fprintf(stderr, "ERROR - Could not resolve destination IP address (%s) :: %s.\n", seq.ip.dst_ip, strerror(errno));
+    if (getaddrinfo(seq.ip.dst_ip, NULL, &hints, &res) != 0) {
+        fprintf(
+            stderr,
+            "ERROR - Could not resolve destination IP address (%s) :: %s.\n",
+            seq.ip.dst_ip, strerror(errno));
 
         return;
     }
 
-    for (rp = res; rp != NULL; rp = rp->ai_next)
-    {
-        if (rp->ai_family == AF_INET)
-        {
+    for (rp = res; rp != NULL; rp = rp->ai_next) {
+        if (rp->ai_family == AF_INET) {
             dst_ip = ((struct sockaddr_in *)rp->ai_addr)->sin_addr.s_addr;
 
             break;
@@ -1046,15 +1036,18 @@ void sequence__start(const char *interface, sequence_t seq, u16 seq_cnt2, cli_t 
 
     freeaddrinfo(res);
 
-    if (dst_ip == 0)
-    {
-        fprintf(stderr, "ERROR - Could not resolve destination IP address (%s). No valid AF_INET address found.\n", seq.ip.dst_ip);
+    if (dst_ip == 0) {
+        fprintf(stderr,
+                "ERROR - Could not resolve destination IP address (%s). No "
+                "valid AF_INET address found.\n",
+                seq.ip.dst_ip);
 
         return;
     }
 
     // Intialize thread attributes.
-    // Feel free to uncomment the setstacksize if you'd like to increase the stack size of each thread (shouldn't be needed).
+    // Feel free to uncomment the setstacksize if you'd like to increase the
+    // stack size of each thread (shouldn't be needed).
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     // pthread_attr_setstacksize(&attr, 16 * 1024 * 1024);
@@ -1084,20 +1077,21 @@ void sequence__start(const char *interface, sequence_t seq, u16 seq_cnt2, cli_t 
     // Store old thread count for later use.
     int old_thread_cnt = thread_cnt;
 
-    for (int i = 0; i < t_cnt; i++)
-    {
+    for (int i = 0; i < t_cnt; i++) {
         ti.id = i;
 
         // Create a duplicate of thread info structure to send to each thread.
         sequence__thread_ctx_t *ti_dup = malloc(sizeof(sequence__thread_ctx_t));
         memcpy(ti_dup, &ti, sizeof(sequence__thread_ctx_t));
 
-        int ret = pthread_create(&threads[thread_cnt], &attr, sequence__thread_core, (void *)ti_dup);
+        int ret = pthread_create(&threads[thread_cnt], &attr,
+                                 sequence__thread_core, (void *)ti_dup);
 
-        if (ret != 0)
-        {
-            fprintf(stderr, "ERROR: pthread_create failed for thread %d: %s (errno: %d)\n",
-                    i, strerror(ret), ret);
+        if (ret != 0) {
+            fprintf(
+                stderr,
+                "ERROR: pthread_create failed for thread %d: %s (errno: %d)\n",
+                i, strerror(ret), ret);
 
             free(ti_dup);
             continue;
@@ -1109,10 +1103,8 @@ void sequence__start(const char *interface, sequence_t seq, u16 seq_cnt2, cli_t 
     pthread_attr_destroy(&attr);
 
     // Check if we need to join/block this threads.
-    if (seq.block || (seq_cnt) >= (seq_cnt2 - 1))
-    {
-        for (int i = 0; i < t_cnt; i++)
-        {
+    if (seq.block || (seq_cnt) >= (seq_cnt2 - 1)) {
+        for (int i = 0; i < t_cnt; i++) {
             pthread_join(threads[old_thread_cnt + i], NULL);
 
             // Ensure we don't cancel this thread when the program ends.
@@ -1128,13 +1120,11 @@ void sequence__start(const char *interface, sequence_t seq, u16 seq_cnt2, cli_t 
  *
  * @return Void
  */
-void sequence__stop_all(config_t *cfg)
-{
-    for (int i = 0; i < thread_cnt; i++)
-    {
-        // If the thread is already joined, pthread_cancel() will cause segfault. Skip it.
-        if (threads_is_joined[i] == 1)
-        {
+void sequence__stop_all(config_t *cfg) {
+    for (int i = 0; i < thread_cnt; i++) {
+        // If the thread is already joined, pthread_cancel() will cause
+        // segfault. Skip it.
+        if (threads_is_joined[i] == 1) {
             continue;
         }
 
@@ -1144,23 +1134,19 @@ void sequence__stop_all(config_t *cfg)
     fprintf(stdout, "Completed %d sequences!\n", seq_cnt);
 
     // Check if we need to print tracked stats.
-    for (int i = 0; i < seq_cnt; i++)
-    {
+    for (int i = 0; i < seq_cnt; i++) {
         sequence_t *seq = &cfg->seq[i];
 
-        if (seq->track)
-        {
+        if (seq->track) {
             // Check if we need to set end time to now.
-            if (end_time[i] < 1)
-            {
+            if (end_time[i] < 1) {
                 end_time[i] = time(NULL);
             }
 
             time_t total_secs = end_time[i] - start_time[i];
 
             // Make sure we're not dividing by 0!
-            if (total_secs < 1)
-            {
+            if (total_secs < 1) {
                 total_secs = 1;
             }
 
@@ -1168,13 +1154,18 @@ void sequence__stop_all(config_t *cfg)
             u64 pps = total_pckts[i] > 0 ? total_pckts[i] / total_secs : 0;
             u64 bps = total_bytes[i] > 0 ? total_bytes[i] / total_secs : 0;
 
-            fprintf(stdout, "[%d] Completed sequence with a total of %llu packets and %llu bytes. Average PPS => %llu. Average BPS => %llu. Total seconds => %ld.\n", i + 1, total_pckts[i], total_bytes[i], pps, bps, total_secs);
+            fprintf(stdout,
+                    "[%d] Completed sequence with a total of %llu packets and "
+                    "%llu bytes. Average PPS => %llu. Average BPS => %llu. "
+                    "Total seconds => %ld.\n",
+                    i + 1, total_pckts[i], total_bytes[i], pps, bps,
+                    total_secs);
         }
     }
 
-    // Free config pointer. Probably isn't needed since we're exiting the program next, but good practice.
-    if (cfg != NULL)
-    {
+    // Free config pointer. Probably isn't needed since we're exiting the
+    // program next, but good practice.
+    if (cfg != NULL) {
         free(cfg);
     }
 }
